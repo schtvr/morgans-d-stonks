@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { apiBaseUrl } from "@/lib/api";
 import { setToken } from "@/lib/auth";
-
-const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("admin");
@@ -20,7 +19,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${apiBase}/api/auth/login`, {
+      const res = await fetch(`${apiBaseUrl()}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
