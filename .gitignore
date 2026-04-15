@@ -1,0 +1,13 @@
+.env
+.env.local
+.env.*.local
+node_modules/
+.next/
+out/
+dist/
+*.exe
+*.test
+*.out
+coverage/
+data/
+.DS_Store

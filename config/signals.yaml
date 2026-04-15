@@ -1,0 +1,19 @@
+version: 1
+rules:
+  - id: "price-drop-5pct"
+    name: "5% Price Drop"
+    description: "Fires when unrealized P&L % vs cost is -5% or worse"
+    condition:
+      type: "price_change_pct"
+      field: "unrealizedPLPct"
+      operator: "lte"
+      threshold: -5.0
+
+  - id: "large-position"
+    name: "Large Position Alert"
+    description: "Fires when a single position exceeds 20% of portfolio market value"
+    condition:
+      type: "concentration"
+      field: "marketValuePct"
+      operator: "gte"
+      threshold: 20.0
