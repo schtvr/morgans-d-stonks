@@ -12,7 +12,7 @@
 
 ```
 morgans-d-stonks/
-├── AGENTS.md                    # this file
+├── AGENTS.md
 ├── README.md
 ├── go.mod / go.sum
 ├── docker-compose.yml
@@ -22,99 +22,103 @@ morgans-d-stonks/
 ├── .gitignore
 ├── .github/workflows/ci.yml
 ├── .agent/
-│   └── epics/                   # agent instruction files (one per epic)
-│       ├── SCH-19-foundation-homelab.md       # P0 Wave 1
-│       ├── SCH-20-ibkr-connectivity.md        # P0 Wave 2
-│       ├── SCH-18-portfolio-service.md        # P0 Wave 2
-│       ├── SCH-17-dashboard.md                # P0 Wave 2–3
-│       ├── SCH-21-ingest-snapshots.md         # P0 Wave 3
-│       ├── SCH-16-signals-discord.md          # P0 Wave 4
-│       ├── SCH-22-rich-alerts-dashboard-analytics.md  # P1 Wave 5
-│       └── SCH-23-openclaw-mcp-alerts.md      # P1 Wave 5
+│   └── epics/
+│       ├── phase_1/             # P0 (MVP) epics
+│       │   ├── foundation-homelab.md
+│       │   ├── ibkr-connectivity.md
+│       │   ├── portfolio-service.md
+│       │   ├── dashboard.md
+│       │   ├── ingest-snapshots.md
+│       │   └── signals-discord.md
+│       └── phase_2/             # P1 (first follow-up) epics
+│           ├── rich-alerts-dashboard-analytics.md
+│           └── openclaw-mcp-alerts.md
 ├── apps/
 │   └── web/                     # Next.js dashboard
 ├── cmd/
-│   ├── portfolio-api/           # Go HTTP service
-│   ├── ingest/                  # Go periodic job
-│   ├── signals/                 # Go signal engine
-│   └── openclaw-proxy/          # Go OpenClaw proxy (P1)
+│   ├── portfolio-api/
+│   ├── ingest/
+│   ├── signals/
+│   └── openclaw-proxy/          # P1
 ├── internal/
-│   ├── broker/                  # Broker interface + IBKR/mock impls
-│   ├── portfolio/               # Portfolio domain + persistence + history
-│   ├── auth/                    # Auth logic + middleware
-│   ├── ingest/                  # Ingest runner logic
-│   ├── signal/                  # Signal engine + rules
-│   ├── discord/                 # Discord webhook + rich alerts
-│   ├── openclaw/                # OpenClaw client + proxy (P1)
-│   ├── mcp/                     # MCP tool servers (P1)
-│   │   ├── portfolio/           # Portfolio snapshot MCP
-│   │   └── market/              # News/fundamentals MCP (stub)
-│   └── config/                  # Shared config
+│   ├── broker/
+│   ├── portfolio/
+│   ├── auth/
+│   ├── ingest/
+│   ├── signal/
+│   ├── discord/
+│   ├── openclaw/                # P1
+│   ├── mcp/                     # P1
+│   │   ├── portfolio/
+│   │   └── market/
+│   └── config/
 ├── config/
-│   └── signals.yaml             # Signal rule definitions
-└── pkg/                         # Public Go packages (if any)
+│   └── signals.yaml
+└── pkg/
 ```
 
-## Agent instructions
+## Agent skills
 
-Each P0 and P1 epic has a detailed agent instruction file in `.agent/epics/`. These files contain everything an agent needs: objective, scope, interface contracts, file lists, acceptance criteria, and explicit boundaries to avoid duplication.
+### How to read the epic files
 
-### How to use the instruction files
+1. Read the instruction file for your assigned epic under `.agent/epics/phase_1/` or `phase_2/`.
+2. Check the **Wave** and **Depends on** fields to understand ordering.
+3. Follow **Scope** for implementation details; respect **Do NOT** to avoid conflicts.
+4. Verify every item in **Acceptance criteria** before marking done.
+5. If a **Shared contract** must change, update all listed consuming epics.
 
-1. Read the instruction file for your assigned epic.
-2. Check the **Wave** number and **Depends on** fields to understand ordering.
-3. Follow the **Scope** section for implementation details.
-4. Respect the **Do NOT** section to avoid stepping on other epics.
-5. Verify against the **Acceptance criteria** before marking done.
-6. If you need to change a **Shared contract**, coordinate with the listed consuming epics.
+### Git workflow
 
-## Execution waves (parallelism guide)
+- Branch name format: `cursor/<issue-id>-<short-description>-<4-char-suffix>` (e.g. `cursor/SCH-19-foundation-a4ba`).
+- One logical change per commit; reference the Linear issue ID in the message (e.g. `SCH-19: scaffold repo layout`).
+- Push and open a PR targeting `main`; PRs must pass CI before merge.
+- No force-pushes or amended commits unless explicitly asked.
 
-Epics are organized into waves based on their dependency graph. Agents working on the same wave can run **in parallel**.
+### Secrets & environment
+
+- Never commit secrets. All config via `.env` (gitignored) and `.env.example`.
+- See `.env.example` for the full list of required variables.
+- Use the `config` package for loading env; never read `os.Getenv` directly in business logic.
+
+### Testing
+
+- Every new package must have at least one `_test.go` file (Go) or `*.test.ts` file (TS).
+- Run `go test ./...` before pushing Go changes.
+- Run `pnpm test` (or `npm test`) before pushing dashboard changes.
+- CI runs the same checks; a failing CI blocks merge.
+
+### Parallelism
+
+- Same-wave epics can be worked in parallel without conflicts.
+- Cross-wave: code against the interface contracts in the instruction files if an earlier epic hasn't merged yet — contracts are the source of truth.
+- P1 epics (phase_2) require all P0 epics merged.
+
+## Execution waves
 
 ```
-Wave 1 ──────────────────────────────────────────────────────
+Phase 1 (P0) ──────────────────────────────────────────────
 │
-│  SCH-19: Foundation & Homelab
-│  (repo layout, Compose, CI, env contract)
+│  Wave 1:  SCH-19  Foundation & Homelab
 │
-Wave 2 ──────────────────────────────────────────────────────
-│         (all three can run in parallel)
+│  Wave 2:  SCH-20  IBKR Connectivity
+│           SCH-18  Portfolio Service        (parallel)
+│           SCH-17  Dashboard — stylekit
 │
-│  SCH-20: IBKR Connectivity     SCH-18: Portfolio Service     SCH-17: Dashboard (stylekit only)
-│  (broker interface + impl)     (API, DB, auth)               (Next.js shell, theme, layout)
+│  Wave 3:  SCH-21  Ingest & Snapshots
+│           SCH-17  Dashboard — data integration
 │
-Wave 3 ──────────────────────────────────────────────────────
+│  Wave 4:  SCH-16  Signals & Discord
 │
-│  SCH-21: Ingest & Snapshots    SCH-17: Dashboard (data integration)
-│  (periodic job, session gating) (auth pages, positions table, API calls)
+Phase 2 (P1) ──────────────────────────────────────────────
 │
-Wave 4 ──────────────────────────────────────────────────────
-│
-│  SCH-16: Signals & Discord
-│  (rule engine, dedup, webhook)
-│
-═══════════════════ P0 complete ═════════════════════════════
-
-Wave 5 ──────────────────────────────────────────────────────
-│         (both can run in parallel)
-│
-│  SCH-22: Rich Alerts &           SCH-23: OpenClaw, MCP &
-│  Dashboard Analytics             Alert Intelligence
-│  (rich Discord, charts, metrics) (proxy svc, MCP servers, circuit breaker)
+│  Wave 5:  SCH-22  Rich Alerts & Analytics  (parallel)
+│           SCH-23  OpenClaw, MCP & Alerts
 │
 ```
-
-### Parallelism rules
-
-- **Same wave**: agents can work simultaneously without conflicts.
-- **Cross-wave**: later waves depend on interfaces/contracts from earlier waves. If an earlier wave hasn't merged yet, code against the documented interface contracts in the instruction files — they are the source of truth.
-- **SCH-17 (Dashboard)** spans two waves: the stylekit/shell work (Wave 2) has no backend dependency, but data integration (Wave 3) needs SCH-18's API.
-- **P1 epics (Wave 5)**: require all P0 epics to be merged. SCH-22 and SCH-23 can run in parallel — SCH-22 extends the Discord client and dashboard, while SCH-23 builds the OpenClaw proxy. They share the `SignalEvent` type (P0 contract) but don't modify each other's files.
 
 ## Shared contracts
 
-These are the integration points between epics. Agents must respect these contracts. Changes require updating all consuming instruction files.
+Changes to any contract require updating all listed consuming epics.
 
 ### Broker interface (`internal/broker/broker.go`)
 
@@ -143,9 +147,17 @@ Owner: **SCH-18** | Consumers: SCH-17, SCH-21
 | `GET` | `/api/health` | Public | all |
 | `POST` | `/internal/snapshots` | Internal key | SCH-21 |
 
+P1 extensions (owner: **SCH-22**):
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/portfolio/history` | Session | Portfolio value over time |
+| `GET` | `/api/portfolio/positions/:symbol/history` | Session | Per-position history |
+| `GET` | `/api/portfolio/metrics` | Session | Period returns + drawdown |
+
 ### SignalEvent type
 
-Owner: **SCH-16** | Consumers: SCH-22 (P1 rich alerts), SCH-23 (P1 OpenClaw)
+Owner: **SCH-16** | Consumers: SCH-22, SCH-23
 
 ```go
 type SignalEvent struct {
@@ -160,60 +172,48 @@ type SignalEvent struct {
 }
 ```
 
-### Portfolio API — P1 time-series endpoints
+### OpenClaw contract
 
-Owner: **SCH-22** (extends SCH-18) | Consumers: SCH-22 dashboard charts
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `GET` | `/api/portfolio/history` | Session | Portfolio value over time (`interval`, `from`, `to` params) |
-| `GET` | `/api/portfolio/positions/:symbol/history` | Session | Per-position price/value history |
-| `GET` | `/api/portfolio/metrics` | Session | Computed period returns + drawdown |
-
-### OpenClaw integration contract
-
-Owner: **SCH-23** | Future consumer: SCH-24 (P2 auto-trade)
+Owner: **SCH-23** | Future consumer: SCH-24 (P2)
 
 ```go
 type OpenClawRequest struct {
-    RequestID     string            `json:"requestId"`
-    Signal        signal.SignalEvent `json:"signal"`
-    PortfolioCtx  PortfolioContext   `json:"portfolioCtx"`
-    MCPTools      []string           `json:"mcpTools"`
-    CreatedAt     time.Time          `json:"createdAt"`
+    RequestID    string             `json:"requestId"`
+    Signal       signal.SignalEvent `json:"signal"`
+    PortfolioCtx PortfolioContext    `json:"portfolioCtx"`
+    MCPTools     []string           `json:"mcpTools"`
+    CreatedAt    time.Time          `json:"createdAt"`
 }
 
 type OpenClawResponse struct {
-    RequestID      string    `json:"requestId"`
-    Analysis       string    `json:"analysis"`
-    Recommendation string    `json:"recommendation"`
-    Confidence     float64   `json:"confidence"`
+    RequestID      string     `json:"requestId"`
+    Analysis       string     `json:"analysis"`
+    Recommendation string     `json:"recommendation"`
+    Confidence     float64    `json:"confidence"`
     ToolCalls      []ToolCall `json:"toolCalls"`
     CompletedAt    time.Time  `json:"completedAt"`
 }
 ```
 
-### MCP tool servers
+### MCP tools
 
 Owner: **SCH-23** | Consumer: OpenClaw agent
 
 | Tool | Server | Description |
 |------|--------|-------------|
-| `get_positions` | `mcp/portfolio` | Current portfolio positions |
-| `get_account_summary` | `mcp/portfolio` | Account-level metrics |
-| `get_position_detail` | `mcp/portfolio` | Detail for a specific symbol |
-| `get_news` | `mcp/market` | Recent news for a symbol (stub for P1) |
-| `get_fundamentals` | `mcp/market` | Basic fundamentals (stub for P1) |
+| `get_positions` | `mcp/portfolio` | Current positions |
+| `get_account_summary` | `mcp/portfolio` | Account metrics |
+| `get_position_detail` | `mcp/portfolio` | Detail for a symbol |
+| `get_news` | `mcp/market` | Recent news (stub) |
+| `get_fundamentals` | `mcp/market` | Basic fundamentals (stub) |
 
 ### Environment variables
 
-All env vars documented in `.env.example`. Each service reads only what it needs:
-
-| Variable | Used by | Epic |
+| Variable | Service | Epic |
 |----------|---------|------|
 | `DATABASE_URL` | portfolio-api | SCH-18 |
-| `IBKR_GATEWAY_HOST/PORT` | ingest (via broker) | SCH-20 |
-| `IBKR_MODE` | ingest (via broker) | SCH-20 |
+| `IBKR_GATEWAY_HOST/PORT` | ingest | SCH-20 |
+| `IBKR_MODE` | ingest | SCH-20 |
 | `AUTH_SECRET` | portfolio-api | SCH-18 |
 | `AUTH_USERNAME/PASSWORD` | portfolio-api | SCH-18 |
 | `INTERNAL_API_KEY` | portfolio-api, ingest | SCH-18, SCH-21 |
@@ -227,8 +227,6 @@ All env vars documented in `.env.example`. Each service reads only what it needs
 | `OPENCLAW_TIMEOUT` | openclaw-proxy | SCH-23 |
 
 ### Docker Compose service names
-
-Owner: **SCH-19** | Used by all epics for inter-service networking.
 
 | Service | Internal hostname | Port |
 |---------|-------------------|------|
@@ -244,32 +242,20 @@ Owner: **SCH-19** | Used by all epics for inter-service networking.
 
 ### Go
 
-- Use `internal/` for all non-public packages.
-- Standard `cmd/` layout with thin `main.go` entry points.
-- Interfaces defined by consumer, not implementer (except `Broker` which is shared).
-- Error wrapping with `fmt.Errorf("context: %w", err)`.
-- Context propagation for all I/O operations.
-- Structured logging (slog or zerolog — pick one, use consistently).
+- `internal/` for all non-public packages; thin `main.go` entry points in `cmd/`.
+- Interfaces defined by the consumer (except the shared `Broker`).
+- Error wrapping: `fmt.Errorf("context: %w", err)`.
+- Context propagation for all I/O.
+- Structured logging via `slog` (standard library) — use consistently across all services.
 
 ### TypeScript / Next.js
 
-- App Router (not Pages Router).
-- Server Components by default; `"use client"` only when needed.
+- App Router; Server Components by default — `"use client"` only when needed.
 - Tailwind for styling; no CSS modules.
 - shadcn/ui components; don't reinvent existing ones.
 
-### General
-
-- Every new package/module should have at least one test file.
-- Commits reference the Linear issue ID (e.g., `SCH-19: scaffold repo layout`).
-- PRs should target `main` and pass CI before merge.
-- No secrets in the repo; all via `.env` and `.env.example`.
-
 ## Linear tracking
 
-- **Project**: Portfolio platform
-- **Team**: Schtvr (key: `SCH`)
-- **Milestones**: P0: MVP → P1: First follow-up → P2: Auto-trade
-- When starting work on an epic, update the Linear issue status to **In Progress**.
-- When opening a PR, link it to the Linear issue.
-- When done, move the issue to **Done**.
+- **Team**: Schtvr (`SCH`) | **Milestones**: P0 MVP → P1 Follow-up → P2 Auto-trade
+- Mark issues **In Progress** when starting, **Done** when the PR merges.
+- Link PRs to their Linear issue.
