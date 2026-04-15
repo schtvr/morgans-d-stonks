@@ -24,15 +24,15 @@ morgans-d-stonks/
 ├── .agent/
 │   └── epics/
 │       ├── phase_1/             # P0 (MVP) epics
-│       │   ├── SCH-19-foundation-homelab.md
-│       │   ├── SCH-20-ibkr-connectivity.md
-│       │   ├── SCH-18-portfolio-service.md
-│       │   ├── SCH-17-dashboard.md
-│       │   ├── SCH-21-ingest-snapshots.md
-│       │   └── SCH-16-signals-discord.md
+│       │   ├── foundation-homelab.md
+│       │   ├── ibkr-connectivity.md
+│       │   ├── portfolio-service.md
+│       │   ├── dashboard.md
+│       │   ├── ingest-snapshots.md
+│       │   └── signals-discord.md
 │       └── phase_2/             # P1 (first follow-up) epics
-│           ├── SCH-22-rich-alerts-dashboard-analytics.md
-│           └── SCH-23-openclaw-mcp-alerts.md
+│           ├── rich-alerts-dashboard-analytics.md
+│           └── openclaw-mcp-alerts.md
 ├── apps/
 │   └── web/                     # Next.js dashboard
 ├── cmd/
