@@ -23,25 +23,32 @@ morgans-d-stonks/
 ├── .github/workflows/ci.yml
 ├── .agent/
 │   └── epics/                   # agent instruction files (one per epic)
-│       ├── SCH-19-foundation-homelab.md
-│       ├── SCH-20-ibkr-connectivity.md
-│       ├── SCH-18-portfolio-service.md
-│       ├── SCH-17-dashboard.md
-│       ├── SCH-21-ingest-snapshots.md
-│       └── SCH-16-signals-discord.md
+│       ├── SCH-19-foundation-homelab.md       # P0 Wave 1
+│       ├── SCH-20-ibkr-connectivity.md        # P0 Wave 2
+│       ├── SCH-18-portfolio-service.md        # P0 Wave 2
+│       ├── SCH-17-dashboard.md                # P0 Wave 2–3
+│       ├── SCH-21-ingest-snapshots.md         # P0 Wave 3
+│       ├── SCH-16-signals-discord.md          # P0 Wave 4
+│       ├── SCH-22-rich-alerts-dashboard-analytics.md  # P1 Wave 5
+│       └── SCH-23-openclaw-mcp-alerts.md      # P1 Wave 5
 ├── apps/
 │   └── web/                     # Next.js dashboard
 ├── cmd/
 │   ├── portfolio-api/           # Go HTTP service
 │   ├── ingest/                  # Go periodic job
-│   └── signals/                 # Go signal engine
+│   ├── signals/                 # Go signal engine
+│   └── openclaw-proxy/          # Go OpenClaw proxy (P1)
 ├── internal/
 │   ├── broker/                  # Broker interface + IBKR/mock impls
-│   ├── portfolio/               # Portfolio domain + persistence
+│   ├── portfolio/               # Portfolio domain + persistence + history
 │   ├── auth/                    # Auth logic + middleware
 │   ├── ingest/                  # Ingest runner logic
 │   ├── signal/                  # Signal engine + rules
-│   ├── discord/                 # Discord webhook client
+│   ├── discord/                 # Discord webhook + rich alerts
+│   ├── openclaw/                # OpenClaw client + proxy (P1)
+│   ├── mcp/                     # MCP tool servers (P1)
+│   │   ├── portfolio/           # Portfolio snapshot MCP
+│   │   └── market/              # News/fundamentals MCP (stub)
 │   └── config/                  # Shared config
 ├── config/
 │   └── signals.yaml             # Signal rule definitions
@@ -50,7 +57,7 @@ morgans-d-stonks/
 
 ## Agent instructions
 
-Each P0 epic has a detailed agent instruction file in `.agent/epics/`. These files contain everything an agent needs: objective, scope, interface contracts, file lists, acceptance criteria, and explicit boundaries to avoid duplication.
+Each P0 and P1 epic has a detailed agent instruction file in `.agent/epics/`. These files contain everything an agent needs: objective, scope, interface contracts, file lists, acceptance criteria, and explicit boundaries to avoid duplication.
 
 ### How to use the instruction files
 
@@ -87,6 +94,15 @@ Wave 4 ────────────────────────�
 │  SCH-16: Signals & Discord
 │  (rule engine, dedup, webhook)
 │
+═══════════════════ P0 complete ═════════════════════════════
+
+Wave 5 ──────────────────────────────────────────────────────
+│         (both can run in parallel)
+│
+│  SCH-22: Rich Alerts &           SCH-23: OpenClaw, MCP &
+│  Dashboard Analytics             Alert Intelligence
+│  (rich Discord, charts, metrics) (proxy svc, MCP servers, circuit breaker)
+│
 ```
 
 ### Parallelism rules
@@ -94,6 +110,7 @@ Wave 4 ────────────────────────�
 - **Same wave**: agents can work simultaneously without conflicts.
 - **Cross-wave**: later waves depend on interfaces/contracts from earlier waves. If an earlier wave hasn't merged yet, code against the documented interface contracts in the instruction files — they are the source of truth.
 - **SCH-17 (Dashboard)** spans two waves: the stylekit/shell work (Wave 2) has no backend dependency, but data integration (Wave 3) needs SCH-18's API.
+- **P1 epics (Wave 5)**: require all P0 epics to be merged. SCH-22 and SCH-23 can run in parallel — SCH-22 extends the Discord client and dashboard, while SCH-23 builds the OpenClaw proxy. They share the `SignalEvent` type (P0 contract) but don't modify each other's files.
 
 ## Shared contracts
 
@@ -128,7 +145,7 @@ Owner: **SCH-18** | Consumers: SCH-17, SCH-21
 
 ### SignalEvent type
 
-Owner: **SCH-16** | Future consumer: SCH-23 (P1)
+Owner: **SCH-16** | Consumers: SCH-22 (P1 rich alerts), SCH-23 (P1 OpenClaw)
 
 ```go
 type SignalEvent struct {
@@ -142,6 +159,51 @@ type SignalEvent struct {
     FiredAt   time.Time `json:"firedAt"`
 }
 ```
+
+### Portfolio API — P1 time-series endpoints
+
+Owner: **SCH-22** (extends SCH-18) | Consumers: SCH-22 dashboard charts
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/portfolio/history` | Session | Portfolio value over time (`interval`, `from`, `to` params) |
+| `GET` | `/api/portfolio/positions/:symbol/history` | Session | Per-position price/value history |
+| `GET` | `/api/portfolio/metrics` | Session | Computed period returns + drawdown |
+
+### OpenClaw integration contract
+
+Owner: **SCH-23** | Future consumer: SCH-24 (P2 auto-trade)
+
+```go
+type OpenClawRequest struct {
+    RequestID     string            `json:"requestId"`
+    Signal        signal.SignalEvent `json:"signal"`
+    PortfolioCtx  PortfolioContext   `json:"portfolioCtx"`
+    MCPTools      []string           `json:"mcpTools"`
+    CreatedAt     time.Time          `json:"createdAt"`
+}
+
+type OpenClawResponse struct {
+    RequestID      string    `json:"requestId"`
+    Analysis       string    `json:"analysis"`
+    Recommendation string    `json:"recommendation"`
+    Confidence     float64   `json:"confidence"`
+    ToolCalls      []ToolCall `json:"toolCalls"`
+    CompletedAt    time.Time  `json:"completedAt"`
+}
+```
+
+### MCP tool servers
+
+Owner: **SCH-23** | Consumer: OpenClaw agent
+
+| Tool | Server | Description |
+|------|--------|-------------|
+| `get_positions` | `mcp/portfolio` | Current portfolio positions |
+| `get_account_summary` | `mcp/portfolio` | Account-level metrics |
+| `get_position_detail` | `mcp/portfolio` | Detail for a specific symbol |
+| `get_news` | `mcp/market` | Recent news for a symbol (stub for P1) |
+| `get_fundamentals` | `mcp/market` | Basic fundamentals (stub for P1) |
 
 ### Environment variables
 
@@ -160,6 +222,9 @@ All env vars documented in `.env.example`. Each service reads only what it needs
 | `SIGNAL_RULES_PATH` | signals | SCH-16 |
 | `SIGNAL_COOLDOWN` | signals | SCH-16 |
 | `NEXT_PUBLIC_API_URL` | web | SCH-17 |
+| `OPENCLAW_API_URL` | openclaw-proxy | SCH-23 |
+| `OPENCLAW_API_KEY` | openclaw-proxy | SCH-23 |
+| `OPENCLAW_TIMEOUT` | openclaw-proxy | SCH-23 |
 
 ### Docker Compose service names
 
@@ -173,6 +238,7 @@ Owner: **SCH-19** | Used by all epics for inter-service networking.
 | `signals` | `signals` | — |
 | `db` | `db` | 5432 |
 | `ib-gateway` | `ib-gateway` | 4001 |
+| `openclaw-proxy` | `openclaw-proxy` | 8090 |
 
 ## Coding standards
 
