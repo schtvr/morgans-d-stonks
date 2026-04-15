@@ -1,0 +1,11 @@
+run:
+  timeout: 5m
+  skip-dirs:
+    - apps/web/node_modules
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
