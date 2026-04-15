@@ -6,7 +6,10 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://portfolio-api:8080}
+      # Next rewrites /api-go/* to this URL (browser uses same-origin /api-go — no CORS for dashboard).
+      PORTFOLIO_API_INTERNAL_URL: ${PORTFOLIO_API_INTERNAL_URL:-http://portfolio-api:8080}
+      # Optional: set to call portfolio-api directly from the browser (then configure CORS + LAN URL).
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
     networks:
       - portfolio-net
     depends_on:
@@ -26,6 +29,8 @@ services:
       AUTH_PASSWORD: ${AUTH_PASSWORD:-changeme}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-changeme}
       HTTP_ADDR: :8080
+      # Origins allowed for browser requests (add http://<LAN-IP>:3000 for other devices on your network).
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
     networks:
       - portfolio-net
     depends_on:

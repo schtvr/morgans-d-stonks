@@ -98,8 +98,11 @@ write_env_file() {
       printf 'DISCORD_WEBHOOK_URL=\n'
     fi
     printf '%s\n' ''
-    printf '%s\n' '# Web'
-    printf 'NEXT_PUBLIC_API_URL=%s\n' "$NEXT_PUBLIC_API_URL"
+    printf '%s\n' '# portfolio-api CORS (only if you set NEXT_PUBLIC_API_URL for direct browser → :8080)'
+    printf 'CORS_ALLOWED_ORIGINS=%s\n' "$CORS_ALLOWED_ORIGINS"
+    printf '%s\n' ''
+    printf '%s\n' '# Web (Next.js rewrites /api-go to portfolio-api — leave NEXT_PUBLIC unset for LAN-friendly default)'
+    printf 'PORTFOLIO_API_INTERNAL_URL=http://portfolio-api:8080\n'
   } >> .env
 }
 
@@ -163,7 +166,7 @@ if [[ "$CONFIGURE" == true ]]; then
     *) IBKR_MODE="mock" ;;
   esac
 
-  NEXT_PUBLIC_API_URL="$(read_default "Browser API URL (dashboard → portfolio-api on your machine)" "http://localhost:8080")"
+  CORS_ALLOWED_ORIGINS="http://localhost:3000,http://127.0.0.1:3000"
 
   write_env_file
   echo ""

@@ -3,6 +3,9 @@ import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  if (pathname.startsWith("/api-go")) {
+    return NextResponse.next();
+  }
   if (pathname.startsWith("/login")) {
     return NextResponse.next();
   }
