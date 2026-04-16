@@ -33,6 +33,10 @@ func main() {
 		log.Error("DATABASE_URL is required")
 		os.Exit(1)
 	}
+	if err := config.ValidatePortfolioAPI(cfg); err != nil {
+		log.Error("invalid config", "err", err)
+		os.Exit(1)
+	}
 
 	ctx := context.Background()
 	repo, err := pgstore.New(ctx, cfg.DatabaseURL)
@@ -134,11 +138,45 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   r.TLS != nil || isForwardedHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
 		Expires:  exp,
 	})
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(portfolio.LoginResponse{Token: token})
+	resp := portfolio.LoginResponse{}
+	if !looksLikeBrowserLogin(r) {
+		resp.Token = token
+	}
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func looksLikeBrowserLogin(r *http.Request) bool {
+	secPurpose := r.Header.Get("Sec-Purpose")
+	if secPurpose == "prefetch" {
+		return false
+	}
+	accept := r.Header.Get("Accept")
+	return strings.Contains(accept, "text/html") || strings.Contains(accept, "*/*")
+}
+
+func isForwardedHTTPS(r *http.Request) bool {
+	if strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+		return true
+	}
+	if xf := r.Header.Get("Forwarded"); xf != "" {
+		for _, part := range strings.Split(xf, ",") {
+			for _, token := range strings.Split(part, ";") {
+				token = strings.TrimSpace(strings.ToLower(token))
+				if strings.HasPrefix(token, "proto=") {
+					v := strings.Trim(strings.TrimPrefix(token, "proto="), `"`)
+					if v == "https" {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (a *app) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -151,6 +189,7 @@ func (a *app) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   r.TLS != nil || isForwardedHTTPS(r),
 		MaxAge:   -1,
 	})
 	w.WriteHeader(http.StatusNoContent)

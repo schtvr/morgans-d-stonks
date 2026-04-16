@@ -47,9 +47,10 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
-// LoginResponse returns a bearer token for API clients; browser also gets Set-Cookie.
+// LoginResponse returns a bearer token for non-browser API clients when applicable.
+// Same-origin browser logins omit token and rely on the HttpOnly session cookie only.
 type LoginResponse struct {
-	Token string `json:"token"`
+	Token string `json:"token,omitempty"`
 }
 
 // MapIngestToViews converts ingest snapshot positions into API views.
