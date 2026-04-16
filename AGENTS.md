@@ -22,17 +22,21 @@ morgans-d-stonks/
 ├── .gitignore
 ├── .github/workflows/ci.yml
 ├── .agent/
-│   └── epics/
-│       ├── phase_1/             # P0 (MVP) epics
-│       │   ├── foundation-homelab.md
-│       │   ├── ibkr-connectivity.md
-│       │   ├── portfolio-service.md
-│       │   ├── dashboard.md
-│       │   ├── ingest-snapshots.md
-│       │   └── signals-discord.md
-│       └── phase_2/             # P1 (first follow-up) epics
-│           ├── rich-alerts-dashboard-analytics.md
-│           └── openclaw-mcp-alerts.md
+│   ├── epics/
+│   │   ├── phase_1/             # P0 (MVP) epics
+│   │   │   ├── foundation-homelab.md
+│   │   │   ├── ibkr-connectivity.md
+│   │   │   ├── portfolio-service.md
+│   │   │   ├── dashboard.md
+│   │   │   ├── ingest-snapshots.md
+│   │   │   ├── signals-discord.md
+│   │   │   └── logging/         # P1 cross-cutting (stdout JSON for Loki)
+│   │   │       └── epic_P1_logging.md
+│   │   └── phase_2/             # P1 (first follow-up) epics
+│   │       ├── rich-alerts-dashboard-analytics.md
+│   │       └── openclaw-mcp-alerts.md
+│   └── skills/                  # Short agent checklists (read with assigned epic)
+│       └── logging.md
 ├── apps/
 │   └── web/                     # Next.js dashboard
 ├── cmd/
@@ -47,6 +51,7 @@ morgans-d-stonks/
 │   ├── ingest/
 │   ├── signal/
 │   ├── discord/
+│   ├── logging/                 # P1 shared slog setup (epic_P1_logging)
 │   ├── openclaw/                # P1
 │   ├── mcp/                     # P1
 │   │   ├── portfolio/
@@ -61,11 +66,15 @@ morgans-d-stonks/
 
 ### How to read the epic files
 
-1. Read the instruction file for your assigned epic under `.agent/epics/phase_1/` or `phase_2/`.
+1. Read the instruction file for your assigned epic under `.agent/epics/phase_1/` or `phase_2/` (including nested dirs such as `phase_1/logging/`).
 2. Check the **Wave** and **Depends on** fields to understand ordering.
 3. Follow **Scope** for implementation details; respect **Do NOT** to avoid conflicts.
 4. Verify every item in **Acceptance criteria** before marking done.
 5. If a **Shared contract** must change, update all listed consuming epics.
+
+### Optional skills (checklists)
+
+For structured logging work, read `.agent/skills/logging.md` alongside `.agent/epics/phase_1/logging/epic_P1_logging.md`.
 
 ### Git workflow
 
@@ -113,6 +122,7 @@ Phase 2 (P1) ──────────────────────�
 │
 │  Wave 5:  SCH-22  Rich Alerts & Analytics  (parallel)
 │           SCH-23  OpenClaw, MCP & Alerts
+│           P1 logging (stdout JSON / Loki) — see `phase_1/logging/epic_P1_logging.md`
 │
 ```
 
@@ -225,6 +235,8 @@ Owner: **SCH-23** | Consumer: OpenClaw agent
 | `OPENCLAW_API_URL` | openclaw-proxy | SCH-23 |
 | `OPENCLAW_API_KEY` | openclaw-proxy | SCH-23 |
 | `OPENCLAW_TIMEOUT` | openclaw-proxy | SCH-23 |
+| `LOG_LEVEL` | all Go services | P1 logging epic |
+| `APP_VERSION` | all Go services (optional) | P1 logging epic |
 
 ### Docker Compose service names
 
@@ -246,7 +258,7 @@ Owner: **SCH-23** | Consumer: OpenClaw agent
 - Interfaces defined by the consumer (except the shared `Broker`).
 - Error wrapping: `fmt.Errorf("context: %w", err)`.
 - Context propagation for all I/O.
-- Structured logging via `slog` (standard library) — use consistently across all services.
+- Structured logging via `slog` (standard library) — use consistently across all services; shared root logger setup lives in `internal/logging` (see `.agent/epics/phase_1/logging/epic_P1_logging.md`).
 
 ### TypeScript / Next.js
 
