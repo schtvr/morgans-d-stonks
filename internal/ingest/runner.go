@@ -47,23 +47,44 @@ func (r *Runner) Run(ctx context.Context) error {
 
 func (r *Runner) tick(ctx context.Context, now time.Time) {
 	_ = now
+	start := time.Now()
+	outcome := "unknown"
+	positionCount := 0
+	var takenAt time.Time
+
+	defer func() {
+		attrs := []any{
+			"tick_outcome", outcome,
+			"duration_ms", time.Since(start).Milliseconds(),
+			"position_count", positionCount,
+		}
+		if !takenAt.IsZero() {
+			attrs = append(attrs, "taken_at", takenAt.UTC())
+		}
+		r.Log.Info("ingest_tick", attrs...)
+	}()
+
 	open, err := r.Broker.IsMarketOpen(ctx)
 	if err != nil {
+		outcome = "skipped_broker_market_check"
 		r.Log.Warn("broker market check", "err", err)
 		return
 	}
 	if !open {
-		r.Log.Info("market closed; skipping tick")
+		outcome = "skipped_market_closed"
 		return
 	}
 
 	positions, err := r.Broker.Positions(ctx)
 	if err != nil {
+		outcome = "skipped_broker_positions"
 		r.Log.Warn("broker positions", "err", err)
 		return
 	}
+	positionCount = len(positions)
 	summary, err := r.Broker.AccountSummary(ctx)
 	if err != nil {
+		outcome = "skipped_broker_summary"
 		r.Log.Warn("broker summary", "err", err)
 		return
 	}
@@ -80,12 +101,15 @@ func (r *Runner) tick(ctx context.Context, now time.Time) {
 	snap := BuildSnapshot(taken, positions, summary)
 	payload, err := MarshalSnapshot(snap)
 	if err != nil {
+		outcome = "skipped_marshal_error"
 		r.Log.Warn("marshal snapshot", "err", err)
 		return
 	}
 	if err := r.Client.PostSnapshotRetry(ctx, payload); err != nil {
+		outcome = "skipped_post_error"
 		r.Log.Warn("post snapshot", "err", err)
 		return
 	}
-	r.Log.Info("snapshot posted", "takenAt", snap.TakenAt)
+	outcome = "posted"
+	takenAt = snap.TakenAt
 }
