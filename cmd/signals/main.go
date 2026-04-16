@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/schtvr/morgans-d-stonks/internal/config"
 	"github.com/schtvr/morgans-d-stonks/internal/discord"
 	"github.com/schtvr/morgans-d-stonks/internal/portfolio"
 	sigpkg "github.com/schtvr/morgans-d-stonks/internal/signal"
@@ -20,25 +21,19 @@ import (
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-	rulesPath := getenv("SIGNAL_RULES_PATH", "./config/signals.yaml")
-	cooldown := getenvDuration("SIGNAL_COOLDOWN", time.Hour)
-	interval := getenvDuration("SIGNAL_INTERVAL", 5*time.Minute)
-	baseURL := getenv("PORTFOLIO_API_URL", "http://localhost:8080")
-	apiKey := getenv("INTERNAL_API_KEY", "changeme")
-	webhook := os.Getenv("DISCORD_WEBHOOK_URL")
-	dedupPath := getenv("SIGNAL_DEDUP_PATH", "./data/signal-dedup.json")
+	cfg := config.LoadSignals()
 
-	rules, err := sigpkg.LoadRulesFile(rulesPath)
+	rules, err := sigpkg.LoadRulesFile(cfg.RulesPath)
 	if err != nil {
 		log.Error("load rules", "err", err)
 		os.Exit(1)
 	}
-	ded, err := sigpkg.NewDedup(dedupPath)
+	ded, err := sigpkg.NewDedup(cfg.DedupPath)
 	if err != nil {
 		log.Error("dedup", "err", err)
 		os.Exit(1)
 	}
-	dc := discord.NewClient(webhook)
+	dc := discord.NewClient(cfg.DiscordWebhookURL)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -50,13 +45,14 @@ func main() {
 		cancel()
 	}()
 
-	t := time.NewTicker(interval)
+	t := time.NewTicker(cfg.Interval)
 	defer t.Stop()
 
 	hc := &http.Client{Timeout: 30 * time.Second}
 
+	discordEnabled := cfg.DiscordWebhookURL != ""
 	run := func() {
-		if err := runOnce(ctx, log, hc, baseURL, apiKey, rules, ded, cooldown, dc, webhook != ""); err != nil {
+		if err := runOnce(ctx, log, hc, cfg.PortfolioAPIURL, cfg.InternalAPIKey, rules, ded, cfg.Cooldown, dc, discordEnabled, cfg.DiscordBotMention); err != nil {
 			log.Warn("tick", "err", err)
 		}
 	}
@@ -83,6 +79,7 @@ func runOnce(
 	cooldown time.Duration,
 	dc *discord.Client,
 	discordEnabled bool,
+	discordBotMention string,
 ) error {
 	snap, err := fetchSnapshot(ctx, hc, baseURL, apiKey)
 	if err != nil {
@@ -101,7 +98,7 @@ func runOnce(
 			log.Info("signal", "event", ev.Signal, "value", ev.Value)
 			continue
 		}
-		msg := "**" + ev.Symbol + "** | " + ev.RuleName
+		msg := discord.SignalWebhookContent(discordBotMention, ev.Symbol, ev.RuleName)
 		if err := dc.SendMessage(ctx, msg); err != nil {
 			log.Warn("discord", "err", err)
 		}
@@ -137,22 +134,3 @@ func fetchSnapshot(ctx context.Context, hc *http.Client, baseURL, apiKey string)
 	return &snap, nil
 }
 
-func getenv(k, def string) string {
-	v := os.Getenv(k)
-	if v == "" {
-		return def
-	}
-	return v
-}
-
-func getenvDuration(k string, def time.Duration) time.Duration {
-	v := os.Getenv(k)
-	if v == "" {
-		return def
-	}
-	d, err := time.ParseDuration(v)
-	if err != nil {
-		return def
-	}
-	return d
-}
