@@ -69,6 +69,7 @@ services:
       SIGNAL_INTERVAL: ${SIGNAL_INTERVAL:-5m}
       SIGNAL_DEDUP_PATH: ${SIGNAL_DEDUP_PATH:-/app/data/signal-dedup.json}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      DISCORD_SIGNAL_BOT_MENTION: ${DISCORD_SIGNAL_BOT_MENTION:-}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-changeme}
       PORTFOLIO_API_URL: ${PORTFOLIO_API_URL:-http://portfolio-api:8080}
     volumes:
