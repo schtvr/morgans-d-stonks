@@ -1,11 +1,14 @@
 package ingest
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,6 +40,41 @@ func TestRunnerTickMock(t *testing.T) {
 	}
 	ctx := context.Background()
 	r.tick(ctx, time.Now())
+}
+
+func TestRunnerTick_emitsIngestTickSummary(t *testing.T) {
+	t.Setenv("MOCK_MARKET_OPEN", "true")
+	b := mock.New()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/internal/snapshots" && r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	var buf bytes.Buffer
+	log := slog.New(slog.NewJSONHandler(&buf, nil))
+	r := &Runner{
+		Broker:   b,
+		Client:   NewClient(srv.URL, "k"),
+		Interval: time.Hour,
+		Log:      log,
+	}
+	r.tick(context.Background(), time.Now())
+
+	line := strings.TrimSpace(buf.String())
+	if !strings.Contains(line, `"msg":"ingest_tick"`) {
+		t.Fatalf("expected ingest_tick log, got: %s", line)
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(line), &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["tick_outcome"] != "posted" {
+		t.Fatalf("tick_outcome = %v", m["tick_outcome"])
+	}
 }
 
 func TestBuildSnapshot(t *testing.T) {
