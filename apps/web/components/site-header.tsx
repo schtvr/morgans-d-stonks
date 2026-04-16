@@ -4,8 +4,8 @@ import Link from "next/link";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
-import { clearToken } from "@/lib/auth";
-import { apiFetch } from "@/lib/api";
+import { clearSessionMarker } from "@/lib/auth";
+import { apiFetch, clearCrossOriginBearerToken } from "@/lib/api";
 
 export function SiteHeader() {
   const { theme, setTheme } = useTheme();
@@ -16,7 +16,8 @@ export function SiteHeader() {
     } catch {
       // ignore
     }
-    clearToken();
+    clearSessionMarker();
+    clearCrossOriginBearerToken();
     window.location.href = "/login";
   }
 

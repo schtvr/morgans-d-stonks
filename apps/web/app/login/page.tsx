@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { apiBaseUrl } from "@/lib/api";
-import { setToken } from "@/lib/auth";
+import { apiBaseUrl, isCrossOriginPublicAPI, setCrossOriginBearerToken } from "@/lib/api";
+import { markSessionPresent } from "@/lib/auth";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("admin");
@@ -19,9 +19,14 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
+      const crossOrigin = isCrossOriginPublicAPI();
       const res = await fetch(`${apiBaseUrl()}/api/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: crossOrigin ? "application/json" : "text/html",
+        },
+        credentials: "include",
         body: JSON.stringify({ username, password }),
       });
       if (!res.ok) {
@@ -29,8 +34,11 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      const data = (await res.json()) as { token: string };
-      setToken(data.token);
+      const body = (await res.json().catch(() => null)) as { token?: string } | null;
+      if (crossOrigin && body?.token) {
+        setCrossOriginBearerToken(body.token);
+      }
+      markSessionPresent();
       window.location.href = "/";
     } catch {
       setError("Could not reach API");
