@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/schtvr/morgans-d-stonks/internal/broker"
+	"github.com/schtvr/morgans-d-stonks/internal/logging"
 )
 
 // Runner orchestrates periodic snapshot ingestion.
@@ -22,7 +23,7 @@ type Runner struct {
 // Run blocks until SIGINT/SIGTERM, executing ticks on Interval.
 func (r *Runner) Run(ctx context.Context) error {
 	if r.Log == nil {
-		r.Log = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+		r.Log = logging.New("ingest")
 	}
 	t := time.NewTicker(r.Interval)
 	defer t.Stop()

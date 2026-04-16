@@ -14,12 +14,13 @@ import (
 
 	"github.com/schtvr/morgans-d-stonks/internal/config"
 	"github.com/schtvr/morgans-d-stonks/internal/discord"
+	"github.com/schtvr/morgans-d-stonks/internal/logging"
 	"github.com/schtvr/morgans-d-stonks/internal/portfolio"
 	sigpkg "github.com/schtvr/morgans-d-stonks/internal/signal"
 )
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	log := logging.New("signals")
 
 	cfg := config.LoadSignals()
 

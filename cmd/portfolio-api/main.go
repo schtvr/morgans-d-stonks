@@ -19,6 +19,7 @@ import (
 
 	"github.com/schtvr/morgans-d-stonks/internal/auth"
 	"github.com/schtvr/morgans-d-stonks/internal/config"
+	"github.com/schtvr/morgans-d-stonks/internal/logging"
 	"github.com/schtvr/morgans-d-stonks/internal/portfolio"
 	pgstore "github.com/schtvr/morgans-d-stonks/internal/portfolio/postgres"
 )
@@ -26,7 +27,7 @@ import (
 // REST API for portfolio snapshots and single-user session auth (SCH-18).
 func main() {
 	cfg := config.LoadPortfolioAPI()
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	log := logging.New("portfolio-api")
 
 	if cfg.DatabaseURL == "" {
 		log.Error("DATABASE_URL is required")

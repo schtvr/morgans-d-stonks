@@ -2,17 +2,17 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"time"
 
 	"github.com/schtvr/morgans-d-stonks/internal/broker"
 	"github.com/schtvr/morgans-d-stonks/internal/brokerwire"
 	"github.com/schtvr/morgans-d-stonks/internal/ingest"
+	"github.com/schtvr/morgans-d-stonks/internal/logging"
 )
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	log := logging.New("ingest")
 
 	cfg := broker.LoadConfigFromEnv()
 	br, err := brokerwire.New(cfg)
