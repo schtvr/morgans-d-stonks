@@ -36,7 +36,7 @@ morgans-d-stonks/
 │   │   └── phase_2/             # P1 (first follow-up) epics
 │   │       ├── rich-alerts-dashboard-analytics.md
 │   │       └── openclaw-mcp-alerts.md
-│   └── skills/
+│   └── skills/                  # Short agent checklists (read with assigned epic)
 │       └── logging.md
 ├── apps/
 │   └── web/                     # Next.js dashboard
@@ -52,7 +52,7 @@ morgans-d-stonks/
 │   ├── ingest/
 │   ├── signal/
 │   ├── discord/
-│   ├── logging/                 # P1 shared slog (epic_P1_logging)
+│   ├── logging/                 # P1 shared slog setup (epic_P1_logging)
 │   ├── openclaw/                # P1
 │   ├── mcp/                     # P1
 │   │   ├── portfolio/
@@ -123,7 +123,7 @@ Phase 2 (P1) ──────────────────────�
 │
 │  Wave 5:  SCH-22  Rich Alerts & Analytics  (parallel)
 │           SCH-23  OpenClaw, MCP & Alerts
-│           P1 logging (stdout JSON / Loki) — `phase_1/logging/epic_P1_logging.md`
+│           P1 logging (stdout JSON / Loki) — see `phase_1/logging/epic_P1_logging.md`
 │
 ```
 
@@ -259,7 +259,7 @@ Owner: **SCH-23** | Consumer: OpenClaw agent
 - Interfaces defined by the consumer (except the shared `Broker`).
 - Error wrapping: `fmt.Errorf("context: %w", err)`.
 - Context propagation for all I/O.
-- Structured logging via `slog` (standard library) — use consistently across all services; shared root logger in `internal/logging` (see `.agent/epics/phase_1/logging/epic_P1_logging.md`).
+- Structured logging via `slog` (standard library) — use consistently across all services; shared root logger setup lives in `internal/logging` (see `.agent/epics/phase_1/logging/epic_P1_logging.md`).
 
 ### TypeScript / Next.js
 
