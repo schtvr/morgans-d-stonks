@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"crypto/subtle"
 	"net/http"
 	"strings"
 
@@ -55,14 +56,22 @@ func extractToken(r *http.Request) string {
 }
 
 // InternalKeyMiddleware validates X-Internal-Key for service-to-service routes.
+// key must be non-empty (enforce at process startup); comparison uses constant-time equality when lengths match.
 func InternalKeyMiddleware(key string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Header.Get("X-Internal-Key") != key {
+			if !constantTimeStringEqual(r.Header.Get("X-Internal-Key"), key) {
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return
 			}
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func constantTimeStringEqual(got, want string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
 }

@@ -14,12 +14,13 @@ import (
 
 	"github.com/schtvr/morgans-d-stonks/internal/config"
 	"github.com/schtvr/morgans-d-stonks/internal/discord"
+	"github.com/schtvr/morgans-d-stonks/internal/logging"
 	"github.com/schtvr/morgans-d-stonks/internal/portfolio"
 	sigpkg "github.com/schtvr/morgans-d-stonks/internal/signal"
 )
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	log := logging.New("signals")
 
 	cfg := config.LoadSignals()
 
@@ -81,6 +82,25 @@ func runOnce(
 	discordEnabled bool,
 	discordBotMention string,
 ) error {
+	start := time.Now()
+	ruleCount := len(rules)
+	eventsEvaluated := 0
+	eventsFired := 0
+	discordErrors := 0
+	eventsSent := 0 // successful Discord deliveries, or log-only emissions when Discord is disabled
+
+	defer func() {
+		log.Info("signals_tick",
+			"duration_ms", time.Since(start).Milliseconds(),
+			"rule_count", ruleCount,
+			"events_evaluated", eventsEvaluated,
+			"events_fired", eventsFired,
+			"events_sent", eventsSent,
+			"discord_enabled", discordEnabled,
+			"discord_errors", discordErrors,
+		)
+	}()
+
 	snap, err := fetchSnapshot(ctx, hc, baseURL, apiKey)
 	if err != nil {
 		return err
@@ -89,19 +109,30 @@ func runOnce(
 	if err != nil {
 		return err
 	}
+	eventsEvaluated = len(evs)
 	now := time.Now().UTC()
 	for _, ev := range evs {
 		if !ded.ShouldFire(ev.RuleID, ev.Symbol, cooldown, now) {
 			continue
 		}
+		eventsFired++
 		if !discordEnabled {
-			log.Info("signal", "event", ev.Signal, "value", ev.Value)
+			log.Info("signal",
+				"rule_id", ev.RuleID,
+				"symbol", ev.Symbol,
+				"event", ev.Signal,
+				"value", ev.Value,
+			)
+			eventsSent++
 			continue
 		}
 		msg := discord.SignalWebhookContent(discordBotMention, ev.Symbol, ev.RuleName)
 		if err := dc.SendMessage(ctx, msg); err != nil {
+			discordErrors++
 			log.Warn("discord", "err", err)
+			continue
 		}
+		eventsSent++
 	}
 	return nil
 }
@@ -125,7 +156,8 @@ func fetchSnapshot(ctx context.Context, hc *http.Client, baseURL, apiKey string)
 		return &portfolio.IngestSnapshotRequest{}, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("portfolio: %s: %s", resp.Status, string(b))
+		// Do not include response body in errors (may leak snapshot or keys into logs).
+		return nil, fmt.Errorf("portfolio: snapshot fetch failed: status=%d", resp.StatusCode)
 	}
 	var snap portfolio.IngestSnapshotRequest
 	if err := json.Unmarshal(b, &snap); err != nil {

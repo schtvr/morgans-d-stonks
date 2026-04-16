@@ -32,6 +32,8 @@ morgans-d-stonks/
 │   │   │   ├── signals-discord.md
 │   │   │   └── logging/         # P1 cross-cutting (stdout JSON for Loki)
 │   │   │       └── epic_P1_logging.md
+│   │   │       ├── epic_P1_logging.md
+│   │   │       └── stories/
 │   │   └── phase_2/             # P1 (first follow-up) epics
 │   │       ├── rich-alerts-dashboard-analytics.md
 │   │       └── openclaw-mcp-alerts.md

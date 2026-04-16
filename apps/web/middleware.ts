@@ -9,8 +9,8 @@ export function middleware(req: NextRequest) {
   if (pathname.startsWith("/login")) {
     return NextResponse.next();
   }
-  const token = req.cookies.get("auth_token")?.value;
-  if (!token) {
+  const hasSession = req.cookies.get("session_ok")?.value === "1";
+  if (!hasSession) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
