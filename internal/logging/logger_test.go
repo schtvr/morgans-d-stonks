@@ -2,6 +2,7 @@ package logging
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -80,7 +81,7 @@ func TestNewLogger_invalidLevelFallbackAndStderr(t *testing.T) {
 		t.Fatalf("expected stderr warning, got %q", errBuf.String())
 	}
 	// Fallback info: debug should not appear
-	if log.Enabled(nil, slog.LevelDebug) {
+	if log.Enabled(context.TODO(), slog.LevelDebug) {
 		t.Fatal("expected info level")
 	}
 	log.Info("ok")
@@ -94,7 +95,7 @@ func TestNewLogger_invalidLevelFallbackAndStderr(t *testing.T) {
 func TestNewLogger_debugLevel(t *testing.T) {
 	var out bytes.Buffer
 	log := newLogger("svc", "debug", "", &out, io.Discard)
-	if !log.Enabled(nil, slog.LevelDebug) {
+	if !log.Enabled(context.TODO(), slog.LevelDebug) {
 		t.Fatal("expected debug enabled")
 	}
 	log.Debug("trace")
