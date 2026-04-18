@@ -1,0 +1,32 @@
+# Balanced, free security checks for PRs:
+# - go mod verify: module graph / sum integrity
+# - OSV-Scanner: see osv-scanner-pr.yml (diff vs base for go.sum + package-lock.json)
+# - Dependabot: see .github/dependabot.yml
+#
+# npm audit is omitted here: Next.js currently reports critical advisories in-range;
+# OSV PR diff + Dependabot handle JS supply chain without blocking every PR on noise.
+#
+# Tip: run `govulncheck ./...` locally after bumping the Go toolchain; older stdlib
+# versions can report many fixed-in-newer-Go advisories that are not practical as CI gates.
+name: Security
+
+on:
+  push:
+    branches: [main, phase-1]
+  pull_request:
+    branches: [main, phase-1]
+
+permissions:
+  contents: read
+
+jobs:
+  go-mod-verify:
+    name: go mod verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache-dependency-path: go.sum
+      - run: go mod verify

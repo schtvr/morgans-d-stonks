@@ -1,0 +1,18 @@
+# OSV.dev: compares base vs PR; fails only on newly introduced vulns (balanced for existing debt).
+# SARIF upload needs default GITHUB_TOKEN with security-events: write (public repos: OK).
+name: OSV-Scanner PR
+
+on:
+  pull_request:
+    branches: [main, phase-1]
+  merge_group:
+    branches: [main, phase-1]
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  scan-pr:
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.3.5
