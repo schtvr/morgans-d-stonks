@@ -12,11 +12,11 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.23"
+          go-version: "1.25.7"
           cache-dependency-path: go.sum
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.61.0
+          version: v2.11.4
 
   go-test:
     runs-on: ubuntu-latest
@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.23"
+          go-version: "1.25.7"
           cache-dependency-path: go.sum
       - run: go test ./cmd/... ./internal/...
 
@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.23"
+          go-version: "1.25.7"
           cache-dependency-path: go.sum
       - run: go build -o /tmp/portfolio-api ./cmd/portfolio-api
       - run: go build -o /tmp/ingest ./cmd/ingest
