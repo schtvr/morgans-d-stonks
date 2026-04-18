@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -72,4 +73,12 @@ func getenvDuration(k string, def time.Duration) time.Duration {
 		return def
 	}
 	return d
+}
+
+// ValidatePortfolioAPI returns an error if required secrets are missing or unsafe.
+func ValidatePortfolioAPI(c PortfolioAPI) error {
+	if strings.TrimSpace(c.InternalAPIKey) == "" {
+		return fmt.Errorf("INTERNAL_API_KEY is required and must be non-empty")
+	}
+	return nil
 }

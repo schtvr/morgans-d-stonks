@@ -12,33 +12,29 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/schtvr/morgans-d-stonks/internal/config"
 	"github.com/schtvr/morgans-d-stonks/internal/discord"
+	"github.com/schtvr/morgans-d-stonks/internal/logging"
 	"github.com/schtvr/morgans-d-stonks/internal/portfolio"
 	sigpkg "github.com/schtvr/morgans-d-stonks/internal/signal"
 )
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	log := logging.New("signals")
 
-	rulesPath := getenv("SIGNAL_RULES_PATH", "./config/signals.yaml")
-	cooldown := getenvDuration("SIGNAL_COOLDOWN", time.Hour)
-	interval := getenvDuration("SIGNAL_INTERVAL", 5*time.Minute)
-	baseURL := getenv("PORTFOLIO_API_URL", "http://localhost:8080")
-	apiKey := getenv("INTERNAL_API_KEY", "changeme")
-	webhook := os.Getenv("DISCORD_WEBHOOK_URL")
-	dedupPath := getenv("SIGNAL_DEDUP_PATH", "./data/signal-dedup.json")
+	cfg := config.LoadSignals()
 
-	rules, err := sigpkg.LoadRulesFile(rulesPath)
+	rules, err := sigpkg.LoadRulesFile(cfg.RulesPath)
 	if err != nil {
 		log.Error("load rules", "err", err)
 		os.Exit(1)
 	}
-	ded, err := sigpkg.NewDedup(dedupPath)
+	ded, err := sigpkg.NewDedup(cfg.DedupPath)
 	if err != nil {
 		log.Error("dedup", "err", err)
 		os.Exit(1)
 	}
-	dc := discord.NewClient(webhook)
+	dc := discord.NewClient(cfg.DiscordWebhookURL)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -50,13 +46,14 @@ func main() {
 		cancel()
 	}()
 
-	t := time.NewTicker(interval)
+	t := time.NewTicker(cfg.Interval)
 	defer t.Stop()
 
 	hc := &http.Client{Timeout: 30 * time.Second}
 
+	discordEnabled := cfg.DiscordWebhookURL != ""
 	run := func() {
-		if err := runOnce(ctx, log, hc, baseURL, apiKey, rules, ded, cooldown, dc, webhook != ""); err != nil {
+		if err := runOnce(ctx, log, hc, cfg.PortfolioAPIURL, cfg.InternalAPIKey, rules, ded, cfg.Cooldown, dc, discordEnabled, cfg.DiscordBotMention); err != nil {
 			log.Warn("tick", "err", err)
 		}
 	}
@@ -83,7 +80,27 @@ func runOnce(
 	cooldown time.Duration,
 	dc *discord.Client,
 	discordEnabled bool,
+	discordBotMention string,
 ) error {
+	start := time.Now()
+	ruleCount := len(rules)
+	eventsEvaluated := 0
+	eventsFired := 0
+	discordErrors := 0
+	eventsSent := 0 // successful Discord deliveries, or log-only emissions when Discord is disabled
+
+	defer func() {
+		log.Info("signals_tick",
+			"duration_ms", time.Since(start).Milliseconds(),
+			"rule_count", ruleCount,
+			"events_evaluated", eventsEvaluated,
+			"events_fired", eventsFired,
+			"events_sent", eventsSent,
+			"discord_enabled", discordEnabled,
+			"discord_errors", discordErrors,
+		)
+	}()
+
 	snap, err := fetchSnapshot(ctx, hc, baseURL, apiKey)
 	if err != nil {
 		return err
@@ -92,19 +109,30 @@ func runOnce(
 	if err != nil {
 		return err
 	}
+	eventsEvaluated = len(evs)
 	now := time.Now().UTC()
 	for _, ev := range evs {
 		if !ded.ShouldFire(ev.RuleID, ev.Symbol, cooldown, now) {
 			continue
 		}
+		eventsFired++
 		if !discordEnabled {
-			log.Info("signal", "event", ev.Signal, "value", ev.Value)
+			log.Info("signal",
+				"rule_id", ev.RuleID,
+				"symbol", ev.Symbol,
+				"event", ev.Signal,
+				"value", ev.Value,
+			)
+			eventsSent++
 			continue
 		}
-		msg := "**" + ev.Symbol + "** | " + ev.RuleName
+		msg := discord.SignalWebhookContent(discordBotMention, ev.Symbol, ev.RuleName)
 		if err := dc.SendMessage(ctx, msg); err != nil {
+			discordErrors++
 			log.Warn("discord", "err", err)
+			continue
 		}
+		eventsSent++
 	}
 	return nil
 }
@@ -128,7 +156,8 @@ func fetchSnapshot(ctx context.Context, hc *http.Client, baseURL, apiKey string)
 		return &portfolio.IngestSnapshotRequest{}, nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("portfolio: %s: %s", resp.Status, string(b))
+		// Do not include response body in errors (may leak snapshot or keys into logs).
+		return nil, fmt.Errorf("portfolio: snapshot fetch failed: status=%d", resp.StatusCode)
 	}
 	var snap portfolio.IngestSnapshotRequest
 	if err := json.Unmarshal(b, &snap); err != nil {
@@ -137,22 +166,3 @@ func fetchSnapshot(ctx context.Context, hc *http.Client, baseURL, apiKey string)
 	return &snap, nil
 }
 
-func getenv(k, def string) string {
-	v := os.Getenv(k)
-	if v == "" {
-		return def
-	}
-	return v
-}
-
-func getenvDuration(k string, def time.Duration) time.Duration {
-	v := os.Getenv(k)
-	if v == "" {
-		return def
-	}
-	d, err := time.ParseDuration(v)
-	if err != nil {
-		return def
-	}
-	return d
-}
