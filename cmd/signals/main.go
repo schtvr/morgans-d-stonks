@@ -147,7 +147,7 @@ func fetchSnapshot(ctx context.Context, hc *http.Client, baseURL, apiKey string)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err

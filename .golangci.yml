@@ -1,14 +1,16 @@
+version: "2"
+
 run:
   timeout: 5m
 
-issues:
-  exclude-dirs:
-    - apps/web/node_modules
-
 linters:
+  default: none
   enable:
     - errcheck
     - govet
     - ineffassign
     - staticcheck
     - unused
+  exclusions:
+    paths:
+      - apps/web/node_modules
