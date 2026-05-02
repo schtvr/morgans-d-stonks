@@ -4,85 +4,66 @@ import (
 	"context"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/schtvr/morgans-d-stonks/internal/broker"
 )
 
-// Broker is a deterministic mock implementation for CI and local dev.
+// Broker is a deterministic in-memory broker for local development.
 type Broker struct {
 	// MarketOpen controls IsMarketOpen when MOCK_MARKET_OPEN is unset.
 	MarketOpen bool
 }
 
-// New returns a MockBroker. If env MOCK_MARKET_OPEN is "false", market is closed.
-func New() *Broker {
-	open := true
-	if v := os.Getenv("MOCK_MARKET_OPEN"); v != "" {
-		open, _ = strconv.ParseBool(v)
+// New builds a mock broker.
+func New() *Broker { return &Broker{MarketOpen: true} }
+
+// Capabilities declares supported operations.
+func (b *Broker) Capabilities() map[broker.Capability]bool {
+	return map[broker.Capability]bool{
+		broker.CapabilityReadPositions: true,
+		broker.CapabilityReadSummary:   true,
+		broker.CapabilityQuote:         true,
+		broker.CapabilityPlaceOrder:    false,
+		broker.CapabilityCancelOrder:   false,
+		broker.CapabilityStreamOrders:  false,
 	}
-	return &Broker{MarketOpen: open}
 }
 
 func (b *Broker) Positions(ctx context.Context) ([]broker.Position, error) {
-	now := time.Now().UTC()
+	_ = ctx
 	return []broker.Position{
-		{
-			Symbol:       "AAPL",
-			ConID:        265598,
-			Quantity:     10,
-			AvgCost:      150.25,
-			MarketValue:  1755.00,
-			UnrealizedPL: 252.50,
-			RealizedPL:   0,
-			Currency:     "USD",
-			UpdatedAt:    now,
-		},
-		{
-			Symbol:       "MSFT",
-			ConID:        272093,
-			Quantity:     5,
-			AvgCost:      300.00,
-			MarketValue:  1900.00,
-			UnrealizedPL: 400.00,
-			RealizedPL:   0,
-			Currency:     "USD",
-			UpdatedAt:    now,
-		},
+		{Symbol: "AAPL", Quantity: 10, AvgCost: 180.5, MarketValue: 1850.0, UnrealizedPL: 45.0},
+		{Symbol: "MSFT", Quantity: 5, AvgCost: 330.0, MarketValue: 1700.0, UnrealizedPL: 50.0},
 	}, nil
 }
 
 func (b *Broker) AccountSummary(ctx context.Context) (*broker.AccountSummary, error) {
-	now := time.Now().UTC()
+	_ = ctx
 	return &broker.AccountSummary{
-		AccountID:      "MOCK",
-		NetLiquidation: 125000.00,
-		TotalCash:      25000.00,
-		BuyingPower:    50000.00,
+		AccountID:      "DU-MOCK",
+		NetLiquidation: 100000,
+		BuyingPower:    200000,
+		TotalCash:      25000,
 		Currency:       "USD",
-		UpdatedAt:      now,
 	}, nil
 }
 
 func (b *Broker) Quotes(ctx context.Context, symbols []string) ([]broker.Quote, error) {
-	now := time.Now().UTC()
+	_ = ctx
 	out := make([]broker.Quote, 0, len(symbols))
 	for _, s := range symbols {
-		out = append(out, broker.Quote{
-			Symbol:    s,
-			Last:      100,
-			Bid:       99.5,
-			Ask:       100.5,
-			Volume:    1_000_000,
-			UpdatedAt: now,
-		})
+		out = append(out, broker.Quote{Symbol: s, Last: 100.0, Bid: 99.5, Ask: 100.5})
 	}
 	return out, nil
 }
 
 func (b *Broker) IsMarketOpen(ctx context.Context) (bool, error) {
+	_ = ctx
 	if v := os.Getenv("MOCK_MARKET_OPEN"); v != "" {
-		return strconv.ParseBool(v)
+		n, err := strconv.Atoi(v)
+		if err == nil {
+			return n != 0, nil
+		}
 	}
 	return b.MarketOpen, nil
 }

@@ -15,4 +15,14 @@ func TestNewMock(t *testing.T) {
 	if _, err := b.Positions(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	if !broker.HasCapability(b, broker.CapabilityQuote) {
+		t.Fatal("expected quote capability")
+	}
+}
+
+func TestNewExecutionUnsupportedMode(t *testing.T) {
+	_, err := NewExecution(broker.Config{Mode: "mock"})
+	if err == nil {
+		t.Fatal("expected unsupported execution error")
+	}
 }
