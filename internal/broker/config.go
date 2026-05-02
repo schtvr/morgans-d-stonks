@@ -7,7 +7,9 @@ import (
 
 // Config configures broker construction (IBKR / mock).
 type Config struct {
-	Mode        string // mock | paper | live
+	Provider    string // ibkr | coinbase
+	Environment string // paper | live
+	Mode        string // ibkr-only: mock | paper | live
 	GatewayHost string
 	GatewayPort int
 	// PortalPort is the HTTPS Client Portal port (typically 5000). 0 means unset.
@@ -17,6 +19,8 @@ type Config struct {
 // LoadConfigFromEnv reads IBKR_* environment variables.
 func LoadConfigFromEnv() Config {
 	cfg := Config{
+		Provider:    getenv("BROKER_PROVIDER", "ibkr"),
+		Environment: getenv("BROKER_ENV", "paper"),
 		Mode:        getenv("IBKR_MODE", "mock"),
 		GatewayHost: getenv("IBKR_GATEWAY_HOST", "127.0.0.1"),
 		GatewayPort: getenvInt("IBKR_GATEWAY_PORT", 4001),

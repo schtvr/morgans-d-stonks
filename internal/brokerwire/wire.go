@@ -11,13 +11,24 @@ import (
 
 // New returns a read broker based on cfg.Mode.
 func New(cfg broker.Config) (broker.Broker, error) {
-	switch cfg.Mode {
-	case "mock":
-		return mock.New(), nil
-	case "paper", "live":
-		return ibkr.New(cfg)
+	switch cfg.Provider {
+	case "":
+		cfg.Provider = "ibkr"
+	}
+	switch cfg.Provider {
+	case "ibkr":
+		switch cfg.Mode {
+		case "mock":
+			return mock.New(), nil
+		case "paper", "live":
+			return ibkr.New(cfg)
+		default:
+			return nil, fmt.Errorf("brokerwire: unknown IBKR_MODE %q", cfg.Mode)
+		}
+	case "coinbase":
+		return nil, fmt.Errorf("brokerwire: provider %q not implemented yet", cfg.Provider)
 	default:
-		return nil, fmt.Errorf("brokerwire: unknown IBKR_MODE %q", cfg.Mode)
+		return nil, fmt.Errorf("brokerwire: unknown BROKER_PROVIDER %q", cfg.Provider)
 	}
 }
 

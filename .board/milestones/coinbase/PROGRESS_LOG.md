@@ -44,3 +44,17 @@
 - Next actions:
   - Commit CB-01 with ticket-formatted message.
   - Start CB-02 + CB-04 planning briefs.
+
+
+## 2026-05-02T05:47:48Z — Iteration 3 (CB-02 + CB-04 complete)
+- Attempted:
+  - Implemented canonical broker domain types for instrument/money/quantity/fill with normalization + decimal validation.
+  - Implemented broker config redesign in `internal/config` with `BROKER_PROVIDER` / `BROKER_ENV` and Coinbase read/trade env split.
+  - Wired ingest startup to load/validate broker config via config package and map into brokerwire legacy config.
+- Acceptance criteria evidence:
+  - CB-02: decimal-safe string-backed amount/quantity constructors using rational parsing; normalization behavior + tests.
+  - CB-04: config package owns new vars, provider-aware startup validation, `.env.example` and README updated.
+- Tests:
+  - `go test ./internal/broker ./internal/config ./internal/brokerwire ./cmd/ingest` ✅ pass
+- Next actions:
+  - Begin CB-03 and CB-06 (wave 3) in parallel tracks.

@@ -36,11 +36,11 @@ CB-01 → CB-02 → CB-06 → CB-07 → CB-09 → CB-10 → CB-12 → CB-13 → 
 | Ticket | Status | Owner role | Last update (UTC) | Notes |
 |---|---|---|---|---|
 | CB-01 | done | implementer/tester/reviewer | 2026-05-02T05:05:18Z | Completed and committed |
-| CB-02 | in_progress | planner | 2026-05-02T05:05:18Z | Ready after CB-01 completion |
-| CB-03 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-01, CB-02 |
-| CB-04 | in_progress | planner | 2026-05-02T05:05:18Z | Ready after CB-01 completion |
+| CB-02 | done | implementer/tester/reviewer | 2026-05-02T05:47:48Z | Domain models + tests complete |
+| CB-03 | in_progress | planner | 2026-05-02T05:47:48Z | Ready after CB-02 |
+| CB-04 | done | implementer/tester/reviewer | 2026-05-02T05:47:48Z | Broker config redesign complete |
 | CB-05 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-02, CB-03 |
-| CB-06 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-02 |
+| CB-06 | in_progress | planner | 2026-05-02T05:47:48Z | Ready after CB-02 |
 | CB-07 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-04, CB-06 |
 | CB-08 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-02, CB-07 |
 | CB-09 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-06, CB-07 |
