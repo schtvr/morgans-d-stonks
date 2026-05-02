@@ -22,7 +22,7 @@ jobs:
       security: ${{ steps.filter.outputs.security }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Filter paths
         id: filter
@@ -58,7 +58,7 @@ jobs:
     if: github.event_name == 'push' || needs.changes.outputs.go == 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -85,7 +85,7 @@ jobs:
         working-directory: apps/web
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -116,7 +116,7 @@ jobs:
       security-events: write
     steps:
       - name: Checkout (full history for secret scanning)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -147,7 +147,7 @@ jobs:
         language: [go, javascript-typescript]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
