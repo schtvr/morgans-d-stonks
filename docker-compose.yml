@@ -80,6 +80,35 @@ services:
       - portfolio-api
     restart: unless-stopped
 
+  trading-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BIN: trading-worker
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://portfolio:changeme@db:5432/portfolio?sslmode=disable}
+      BROKER_PROVIDER: ${BROKER_PROVIDER:-coinbase}
+      BROKER_ENV: ${BROKER_ENV:-paper}
+      COINBASE_READ_API_KEY: ${COINBASE_READ_API_KEY:-}
+      COINBASE_READ_API_SECRET: ${COINBASE_READ_API_SECRET:-}
+      COINBASE_TRADE_API_KEY: ${COINBASE_TRADE_API_KEY:-}
+      COINBASE_TRADE_API_SECRET: ${COINBASE_TRADE_API_SECRET:-}
+      TRADING_ENABLED: ${TRADING_ENABLED:-false}
+      TRADING_KILL_SWITCH: ${TRADING_KILL_SWITCH:-false}
+      TRADING_MAX_NOTIONAL: ${TRADING_MAX_NOTIONAL:-1000}
+      TRADING_RESERVE: ${TRADING_RESERVE:-0}
+      TRADING_ALLOWED_PROVIDERS: ${TRADING_ALLOWED_PROVIDERS:-coinbase}
+      TRADING_ALLOWED_SYMBOLS: ${TRADING_ALLOWED_SYMBOLS:-BTC-USD,ETH-USD}
+      TRADING_DENIED_SYMBOLS: ${TRADING_DENIED_SYMBOLS:-}
+      TRADING_INTERVAL: ${TRADING_INTERVAL:-30s}
+    networks:
+      - portfolio-net
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   db:
     image: postgres:16-alpine
     environment:

@@ -1,0 +1,22 @@
+groups:
+  - name: coinbase-trading
+    rules:
+      - alert: CoinbaseTradingRejectStorm
+        expr: rate(trading_order_rejects_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: critical
+          runbook: docs/runbooks/coinbase-trading.md
+        annotations:
+          summary: Coinbase trading is rejecting orders at a high rate.
+          runbook_url: docs/runbooks/coinbase-trading.md
+      - alert: CoinbaseTradingReconciliationLagHigh
+        expr: trading_reconciliation_lag_seconds_sum > 300
+        for: 10m
+        labels:
+          severity: warning
+          runbook: docs/runbooks/coinbase-trading.md
+        annotations:
+          summary: Coinbase order reconciliation lag is elevated.
+          runbook_url: docs/runbooks/coinbase-trading.md
+

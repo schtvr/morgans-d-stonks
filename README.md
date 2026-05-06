@@ -7,6 +7,7 @@ US equities portfolio tracker — Go services + Next.js dashboard, connected to 
 - **Backend**: Go services (`portfolio-api`, `ingest`, `signals`)
 - **Frontend**: Next.js 14 + Tailwind + shadcn/ui
 - **Broker**: Interactive Brokers (paper mode by default)
+- **Trading**: Coinbase order scaffolding, paper execution simulation, and rollout controls
 - **DB**: Postgres 16
 - **Infra**: Docker Compose
 
@@ -52,6 +53,13 @@ flowchart TB
 - Select provider with `BROKER_PROVIDER` (`ibkr` default, `coinbase` reserved for follow-up work).
 - For IBKR development without a live gateway, set `IBKR_MODE=mock` (used by `ingest`).
 - With IB Gateway on the host (not in Docker), set `IBKR_GATEWAY_HOST=host.docker.internal` and configure Client Portal / TWS ports per [internal/broker/ibkr/DECISION.md](internal/broker/ibkr/DECISION.md).
+
+### Coinbase trading rollout
+
+- Keep `TRADING_ENABLED=false` until the allowlists and max-notional controls are configured.
+- The Coinbase paper execution adapter is available when `BROKER_PROVIDER=coinbase` and `BROKER_ENV=paper`.
+- The trading worker and API expose Prometheus-compatible metrics on `GET /metrics`.
+- Operational guidance lives in [docs/runbooks/coinbase-trading.md](docs/runbooks/coinbase-trading.md).
 
 ### Stylekit (dashboard)
 
