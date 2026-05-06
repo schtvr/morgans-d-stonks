@@ -10,6 +10,36 @@ US equities portfolio tracker — Go services + Next.js dashboard, connected to 
 - **DB**: Postgres 16
 - **Infra**: Docker Compose
 
+## Architecture
+
+Services run on a shared Docker network (`portfolio-net`). The dashboard talks to the portfolio API; ingest and signals use the internal API key to call the API. Ingest pulls market and account data from IB Gateway (or a mock when `IBKR_MODE=mock`).
+
+```mermaid
+flowchart TB
+  subgraph Clients
+    B[Browser]
+  end
+
+  subgraph Compose["Docker Compose"]
+    W[web<br/>Next.js :3000]
+    API[portfolio-api<br/>Go :8080]
+    DB[(Postgres :5432)]
+    ING[ingest<br/>Go]
+    SIG[signals<br/>Go]
+    IB[ib-gateway<br/>stub / TWS]
+  end
+
+  DC[Discord]
+
+  B -->|session / dashboard| W
+  W -->|HTTP API| API
+  API --> DB
+  ING -->|IBKR| IB
+  ING -->|internal snapshots| API
+  SIG -->|internal reads| API
+  SIG -.->|optional webhook| DC
+```
+
 ## Local development
 
 1. `cp .env.example .env` and set at least `DATABASE_URL`, `INTERNAL_API_KEY`, and optional `DISCORD_WEBHOOK_URL`.
@@ -19,7 +49,8 @@ US equities portfolio tracker — Go services + Next.js dashboard, connected to 
 
 ### IB Gateway
 
-- For development without a live gateway, set `IBKR_MODE=mock` (used by `ingest`).
+- Select provider with `BROKER_PROVIDER` (`ibkr` default, `coinbase` reserved for follow-up work).
+- For IBKR development without a live gateway, set `IBKR_MODE=mock` (used by `ingest`).
 - With IB Gateway on the host (not in Docker), set `IBKR_GATEWAY_HOST=host.docker.internal` and configure Client Portal / TWS ports per [internal/broker/ibkr/DECISION.md](internal/broker/ibkr/DECISION.md).
 
 ### Stylekit (dashboard)

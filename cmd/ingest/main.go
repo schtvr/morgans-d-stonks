@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/schtvr/morgans-d-stonks/internal/broker"
 	"github.com/schtvr/morgans-d-stonks/internal/brokerwire"
+	"github.com/schtvr/morgans-d-stonks/internal/config"
 	"github.com/schtvr/morgans-d-stonks/internal/ingest"
 	"github.com/schtvr/morgans-d-stonks/internal/logging"
 )
@@ -14,8 +14,12 @@ import (
 func main() {
 	log := logging.New("ingest")
 
-	cfg := broker.LoadConfigFromEnv()
-	br, err := brokerwire.New(cfg)
+	brokerCfg := config.LoadBroker()
+	if err := brokerCfg.Validate(); err != nil {
+		log.Error("broker-config", "err", err)
+		os.Exit(1)
+	}
+	br, err := brokerwire.New(brokerCfg.ToLegacyBrokerConfig())
 	if err != nil {
 		log.Error("broker", "err", err)
 		os.Exit(1)
