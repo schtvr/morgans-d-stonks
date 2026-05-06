@@ -58,3 +58,19 @@
   - `go test ./internal/broker ./internal/config ./internal/brokerwire ./cmd/ingest` ✅ pass
 - Next actions:
   - Begin CB-03 and CB-06 (wave 3) in parallel tracks.
+
+## 2026-05-04T00:00:00Z — Iteration 4 (CB-03 complete)
+- Attempted:
+  - Implemented Coinbase read-only broker adapter with positions/summary/quotes methods.
+  - Added retry/backoff behavior for 429/5xx responses with context-aware cancellation.
+  - Added product metadata cache keyed by product id and quote normalization helper.
+  - Wired broker factory to return Coinbase adapter for `BROKER_PROVIDER=coinbase`.
+- Acceptance criteria evidence (CB-03):
+  - [x] Broker read interface implemented.
+  - [x] Retries/backoff on 429/5xx with context timeouts.
+  - [x] Product metadata cache (tick/min size/status).
+  - [x] Integration-style test with mocked Coinbase API server.
+- Tests:
+  - `go test ./internal/broker/... ./internal/brokerwire` ✅ pass
+- Next actions:
+  - Start CB-06 persistence schema implementation.

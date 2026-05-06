@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/schtvr/morgans-d-stonks/internal/broker"
+	"github.com/schtvr/morgans-d-stonks/internal/broker/coinbase"
 	"github.com/schtvr/morgans-d-stonks/internal/broker/ibkr"
 	"github.com/schtvr/morgans-d-stonks/internal/broker/mock"
 )
@@ -26,7 +27,7 @@ func New(cfg broker.Config) (broker.Broker, error) {
 			return nil, fmt.Errorf("brokerwire: unknown IBKR_MODE %q", cfg.Mode)
 		}
 	case "coinbase":
-		return nil, fmt.Errorf("brokerwire: provider %q not implemented yet", cfg.Provider)
+		return coinbase.NewReadOnly(nil, ""), nil
 	default:
 		return nil, fmt.Errorf("brokerwire: unknown BROKER_PROVIDER %q", cfg.Provider)
 	}

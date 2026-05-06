@@ -26,3 +26,13 @@ func TestNewExecutionUnsupportedMode(t *testing.T) {
 		t.Fatal("expected unsupported execution error")
 	}
 }
+
+func TestNewCoinbase(t *testing.T) {
+	b, err := New(broker.Config{Provider: "coinbase"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !broker.HasCapability(b, broker.CapabilityQuote) {
+		t.Fatal("expected coinbase quote capability")
+	}
+}
