@@ -49,7 +49,8 @@ flowchart TB
 
 ### IB Gateway
 
-- For development without a live gateway, set `IBKR_MODE=mock` (used by `ingest`).
+- Select provider with `BROKER_PROVIDER` (`ibkr` default, `coinbase` reserved for follow-up work).
+- For IBKR development without a live gateway, set `IBKR_MODE=mock` (used by `ingest`).
 - With IB Gateway on the host (not in Docker), set `IBKR_GATEWAY_HOST=host.docker.internal` and configure Client Portal / TWS ports per [internal/broker/ibkr/DECISION.md](internal/broker/ibkr/DECISION.md).
 
 ### Stylekit (dashboard)
