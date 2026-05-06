@@ -8,8 +8,8 @@ import (
 
 // IngestSnapshotRequest is the JSON body for POST /internal/snapshots (ingest job).
 type IngestSnapshotRequest struct {
-	TakenAt   time.Time         `json:"takenAt"`
-	Positions []broker.Position `json:"positions"`
+	TakenAt   time.Time             `json:"takenAt"`
+	Positions []broker.Position     `json:"positions"`
 	Summary   broker.AccountSummary `json:"summary"`
 }
 
@@ -51,6 +51,63 @@ type LoginRequest struct {
 // Same-origin browser logins omit token and rely on the HttpOnly session cookie only.
 type LoginResponse struct {
 	Token string `json:"token,omitempty"`
+}
+
+// FollowedSymbol is a crypto asset the user has chosen to watch.
+type FollowedSymbol struct {
+	Symbol    string    `json:"symbol"`
+	Source    string    `json:"source,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// FollowedSymbolRequest is the payload for add/remove operations.
+type FollowedSymbolRequest struct {
+	Symbol string `json:"symbol"`
+}
+
+// FollowedSymbolsResponse lists the watched assets.
+type FollowedSymbolsResponse struct {
+	Symbols []FollowedSymbol `json:"symbols"`
+}
+
+// SignalSettings stores the alert thresholds used by the crypto signals loop.
+type SignalSettings struct {
+	MoveThresholdPct float64   `json:"moveThresholdPct"`
+	Cooldown         string    `json:"cooldown"`
+	UpdatedAt        time.Time `json:"updatedAt"`
+}
+
+// SignalSettingsRequest updates the persisted signal settings.
+type SignalSettingsRequest struct {
+	MoveThresholdPct float64 `json:"moveThresholdPct"`
+	Cooldown         string  `json:"cooldown"`
+}
+
+// RecentAlert is a persisted alert that fired for a followed crypto symbol.
+type RecentAlert struct {
+	ID              int64     `json:"id"`
+	Type            string    `json:"type"`
+	Symbol          string    `json:"symbol"`
+	ProductID       string    `json:"productId,omitempty"`
+	Source          string    `json:"source,omitempty"`
+	CurrentPrice    float64   `json:"currentPrice"`
+	PreviousPrice   *float64  `json:"previousPrice,omitempty"`
+	DeltaAmount     *float64  `json:"deltaAmount,omitempty"`
+	DeltaPct        float64   `json:"deltaPct"`
+	ThresholdPct    float64   `json:"thresholdPct"`
+	Quantity        *float64  `json:"quantity,omitempty"`
+	AvgCost         *float64  `json:"avgCost,omitempty"`
+	CostBasis       *float64  `json:"costBasis,omitempty"`
+	UnrealizedPL    *float64  `json:"unrealizedPl,omitempty"`
+	UnrealizedPLPct *float64  `json:"unrealizedPlPct,omitempty"`
+	FiredAt         time.Time `json:"firedAt"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
+// RecentAlertsResponse lists the most recent fired alerts.
+type RecentAlertsResponse struct {
+	Alerts []RecentAlert `json:"alerts"`
 }
 
 // MapIngestToViews converts ingest snapshot positions into API views.
