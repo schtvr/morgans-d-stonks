@@ -1,19 +1,19 @@
 # morgans-d-stonks
 
-US equities portfolio tracker — Go services + Next.js dashboard, connected to Interactive Brokers, running on a homelab via Docker Compose.
+US equities portfolio tracker with a crypto-only Coinbase alert/trading MVP, built with Go services + Next.js dashboard and deployed via Docker Compose.
 
 ## Stack
 
 - **Backend**: Go services (`portfolio-api`, `ingest`, `signals`)
 - **Frontend**: Next.js 14 + Tailwind + shadcn/ui
 - **Broker**: Interactive Brokers (paper mode by default)
-- **Trading**: Coinbase order scaffolding, paper execution simulation, and rollout controls
+- **Trading**: Coinbase order scaffolding, crypto alerting, paper execution simulation, and rollout controls
 - **DB**: Postgres 16
 - **Infra**: Docker Compose
 
 ## Architecture
 
-Services run on a shared Docker network (`portfolio-net`). The dashboard talks to the portfolio API; ingest and signals use the internal API key to call the API. Ingest pulls market and account data from IB Gateway (or a mock when `IBKR_MODE=mock`).
+Services run on a shared Docker network (`portfolio-net`). The dashboard talks to the portfolio API; ingest and signals use the internal API key to call the API. Ingest pulls market and account data from IB Gateway (or a mock when `IBKR_MODE=mock`). The signals service watches followed Coinbase crypto symbols and emits thresholded alerts.
 
 ```mermaid
 flowchart TB
@@ -37,14 +37,14 @@ flowchart TB
   API --> DB
   ING -->|IBKR| IB
   ING -->|internal snapshots| API
-  SIG -->|internal reads| API
+  SIG -->|followed symbols + latest snapshot| API
   SIG -.->|optional webhook| DC
 ```
 
 ## Local development
 
 1. `cp .env.example .env` and set at least `DATABASE_URL`, `INTERNAL_API_KEY`, and optional `DISCORD_WEBHOOK_URL`.
-2. `docker compose up` — starts web, API, ingest, signals, Postgres, and an IB Gateway stub container.
+2. `docker compose up` - starts web, API, ingest, signals, Postgres, and an IB Gateway stub container.
 3. Web UI: http://localhost:3000 (sign in with `AUTH_USERNAME` / `AUTH_PASSWORD` from `.env`).
 4. API health: http://localhost:8080/api/health
 
@@ -60,6 +60,13 @@ flowchart TB
 - The Coinbase paper execution adapter is available when `BROKER_PROVIDER=coinbase` and `BROKER_ENV=paper`.
 - The trading worker and API expose Prometheus-compatible metrics on `GET /metrics`.
 - Operational guidance lives in [docs/runbooks/coinbase-trading.md](docs/runbooks/coinbase-trading.md).
+
+### Crypto alerts
+
+- The signals service uses `SIGNAL_MOVE_THRESHOLD_PCT` and `SIGNAL_COOLDOWN` to control alert volume.
+- Followed symbols are persisted in Postgres and seeded from the first crypto snapshot.
+- Alerts are emitted as compact JSON payloads for Discord/OpenClaw consumption.
+- The dashboard exposes a watchlist, alert-controls panel, and recent-alerts panel for the crypto MVP.
 
 ### Stylekit (dashboard)
 
@@ -86,4 +93,4 @@ See [AGENTS.md](AGENTS.md) for the full architecture, shared contracts, and agen
 
 ## Linear
 
-[Portfolio platform project](https://linear.app/schtvr/project/portfolio-platform-1e44112535d4) — team `SCH`.
+[Portfolio platform project](https://linear.app/schtvr/project/portfolio-platform-1e44112535d4) - team `SCH`.

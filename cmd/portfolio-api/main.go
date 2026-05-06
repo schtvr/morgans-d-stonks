@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/schtvr/morgans-d-stonks/internal/auth"
+	"github.com/schtvr/morgans-d-stonks/internal/broker"
 	"github.com/schtvr/morgans-d-stonks/internal/config"
 	"github.com/schtvr/morgans-d-stonks/internal/logging"
 	"github.com/schtvr/morgans-d-stonks/internal/portfolio"
@@ -68,6 +69,9 @@ func main() {
 		log.Error("trading migrations", "err", err)
 		os.Exit(1)
 	}
+	if err := seedFollowedSymbolsFromLatestSnapshot(ctx, repo); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		log.Warn("seed followed symbols", "err", err)
+	}
 
 	app := &app{
 		cfg:        cfg,
@@ -93,7 +97,7 @@ func main() {
 	r.Use(logging.AccessLog(log))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.CORSAllowedOrigins,
-		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		AllowCredentials: true,
 		MaxAge:           300,
@@ -108,12 +112,21 @@ func main() {
 		r.Post("/api/auth/logout", app.handleLogout)
 		r.Get("/api/portfolio/positions", app.handlePositions)
 		r.Get("/api/portfolio/summary", app.handleSummary)
+		r.Get("/api/trading/followed-symbols", app.handleFollowedSymbolsList)
+		r.Post("/api/trading/followed-symbols", app.handleFollowedSymbolsAdd)
+		r.Delete("/api/trading/followed-symbols/{symbol}", app.handleFollowedSymbolRemove)
+		r.Get("/api/trading/alert-settings", app.handleAlertSettingsGet)
+		r.Put("/api/trading/alert-settings", app.handleAlertSettingsUpdate)
+		r.Get("/api/trading/recent-alerts", app.handleRecentAlertsList)
 	})
 
 	r.Group(func(r chi.Router) {
 		r.Use(auth.InternalKeyMiddleware(cfg.InternalAPIKey))
 		r.Post("/internal/snapshots", app.handleInternalSnapshot)
 		r.Get("/internal/snapshot/latest", app.handleInternalLatest)
+		r.Get("/internal/followed-symbols", app.handleInternalFollowedSymbols)
+		r.Get("/internal/signal-settings", app.handleInternalSignalSettings)
+		r.Post("/internal/recent-alerts", app.handleInternalRecentAlertCreate)
 		r.Route("/internal/orders", func(r chi.Router) {
 			r.Use(app.tradingGate)
 			r.Post("/validate", app.handleOrderValidate)
@@ -146,7 +159,7 @@ func main() {
 type app struct {
 	cfg        config.PortfolioAPI
 	tradingCfg config.Trading
-	repo       *pgstore.Repository
+	repo       portfolio.Repository
 	tradeRepo  *tradepg.Repository
 	tradeSvc   *trading.Service
 	metrics    *trading.Metrics
@@ -314,6 +327,9 @@ func (a *app) handleInternalSnapshot(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	if err := seedFollowedSymbolsFromPositions(r.Context(), a.repo, req.Positions); err != nil && a.log != nil {
+		a.log.Warn("seed followed symbols", "err", err)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -329,4 +345,40 @@ func (a *app) handleInternalLatest(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(payload)
+}
+
+func seedFollowedSymbolsFromLatestSnapshot(ctx context.Context, repo portfolio.Repository) error {
+	seeded, err := repo.FollowedSymbolsSeeded(ctx)
+	if err != nil || seeded {
+		return err
+	}
+	_, payload, err := repo.LatestSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+	var snap portfolio.IngestSnapshotRequest
+	if err := json.Unmarshal(payload, &snap); err != nil {
+		return err
+	}
+	if err := seedFollowedSymbolsFromPositions(ctx, repo, snap.Positions); err != nil {
+		return err
+	}
+	return repo.MarkFollowedSymbolsSeeded(ctx, time.Now().UTC())
+}
+
+func seedFollowedSymbolsFromPositions(ctx context.Context, repo portfolio.Repository, positions []broker.Position) error {
+	seeded, err := repo.FollowedSymbolsSeeded(ctx)
+	if err != nil || seeded {
+		return err
+	}
+	for _, p := range positions {
+		symbol := normalizeFollowedSymbol(p.Symbol)
+		if symbol == "" {
+			continue
+		}
+		if err := repo.UpsertFollowedSymbol(ctx, symbol, "seeded"); err != nil {
+			return err
+		}
+	}
+	return repo.MarkFollowedSymbolsSeeded(ctx, time.Now().UTC())
 }

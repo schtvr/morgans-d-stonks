@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CryptoAlertControlsCard } from "@/components/crypto-alert-controls-card";
+import { CryptoRecentAlertsCard } from "@/components/crypto-recent-alerts-card";
 import { AccountSummaryBar, type Summary } from "@/components/account-summary";
+import { CryptoWatchlistCard } from "@/components/crypto-watchlist-card";
 import { PositionsTable, type PositionRow } from "@/components/positions-table";
 import { SiteHeader } from "@/components/site-header";
 import { apiFetch } from "@/lib/api";
@@ -63,6 +66,11 @@ export default function HomePage() {
             <PositionsTable positions={positions} loading={loading} error={error} onRetry={() => void load()} />
           </CardContent>
         </Card>
+        <div className="grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
+          <CryptoWatchlistCard />
+          <CryptoAlertControlsCard />
+        </div>
+        <CryptoRecentAlertsCard />
       </main>
     </div>
   );
