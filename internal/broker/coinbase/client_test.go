@@ -51,3 +51,50 @@ func TestQuotesRetryAndCache(t *testing.T) {
 		t.Fatalf("expected spot retries, got %d", spotHits)
 	}
 }
+
+func TestPositionsAndAccountSummaryComputeMarketValue(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/accounts":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"accounts":[{"currency":"BTC","available_balance":"2"},{"currency":"USD","available_balance":"10"}]}`))
+		case "/api/v3/brokerage/products":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"products":[{"product_id":"BTC-USD","base_increment":"0.00000001","quote_increment":"0.01","trading_disabled":false},{"product_id":"USD-USD","base_increment":"0.01","quote_increment":"0.01","trading_disabled":false}]}`))
+		case "/v2/prices/BTC-USD/spot":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"data":{"amount":"100"}}`))
+		case "/v2/prices/USD-USD/spot":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"data":{"amount":"1"}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	c := NewReadOnly(ts.Client(), ts.URL)
+	ctx := context.Background()
+
+	positions, err := c.Positions(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(positions) != 2 {
+		t.Fatalf("expected 2 positions, got %d", len(positions))
+	}
+	if positions[0].Symbol != "BTC-USD" || positions[0].MarketValue != 200 {
+		t.Fatalf("unexpected BTC position: %+v", positions[0])
+	}
+	if positions[1].Symbol != "USD-USD" || positions[1].MarketValue != 10 {
+		t.Fatalf("unexpected USD position: %+v", positions[1])
+	}
+
+	summary, err := c.AccountSummary(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.NetLiquidation != 210 || summary.TotalCash != 210 || summary.BuyingPower != 210 {
+		t.Fatalf("unexpected summary: %+v", summary)
+	}
+}
