@@ -61,12 +61,36 @@ func (c *Client) Positions(ctx context.Context) ([]broker.Position, error) {
 	}
 	out := make([]broker.Position, 0, len(resp.Accounts))
 	now := time.Now().UTC()
+	symbols := make([]string, 0, len(resp.Accounts))
 	for _, a := range resp.Accounts {
 		q, _ := strconv.ParseFloat(a.AvailableBalance, 64)
 		if q == 0 {
 			continue
 		}
-		out = append(out, broker.Position{Symbol: strings.ToUpper(a.Currency) + "-USD", Quantity: q, Currency: "USD", UpdatedAt: now})
+		symbol := strings.ToUpper(a.Currency) + "-USD"
+		out = append(out, broker.Position{Symbol: symbol, Quantity: q, Currency: "USD", UpdatedAt: now})
+		symbols = append(symbols, symbol)
+	}
+	if len(out) == 0 {
+		return out, nil
+	}
+
+	quotes, err := c.Quotes(ctx, symbols)
+	if err != nil {
+		return nil, err
+	}
+	prices := make(map[string]float64, len(quotes))
+	for _, q := range quotes {
+		prices[strings.ToUpper(q.Symbol)] = q.Last
+	}
+	for i := range out {
+		if out[i].Symbol == "USD-USD" {
+			out[i].MarketValue = out[i].Quantity
+			continue
+		}
+		if last, ok := prices[strings.ToUpper(out[i].Symbol)]; ok {
+			out[i].MarketValue = out[i].Quantity * last
+		}
 	}
 	return out, nil
 }
