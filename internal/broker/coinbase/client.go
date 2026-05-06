@@ -67,7 +67,7 @@ func (c *Client) Positions(ctx context.Context) ([]broker.Position, error) {
 		if q == 0 {
 			continue
 		}
-		symbol := strings.ToUpper(a.Currency) + "-USD"
+		symbol := ProviderToCanonicalSymbol(strings.ToUpper(a.Currency) + "-USD")
 		out = append(out, broker.Position{Symbol: symbol, Quantity: q, Currency: "USD", UpdatedAt: now})
 		symbols = append(symbols, symbol)
 	}
@@ -110,7 +110,7 @@ func (c *Client) AccountSummary(ctx context.Context) (*broker.AccountSummary, er
 func (c *Client) Quotes(ctx context.Context, symbols []string) ([]broker.Quote, error) {
 	quotes := make([]broker.Quote, 0, len(symbols))
 	for _, s := range symbols {
-		productID := normalizeProductID(s)
+		productID := CanonicalToProviderSymbol(s)
 		if err := c.ensureProductCached(ctx, productID); err != nil {
 			return nil, err
 		}
@@ -126,14 +126,6 @@ func (c *Client) Quotes(ctx context.Context, symbols []string) ([]broker.Quote, 
 		quotes = append(quotes, broker.Quote{Symbol: productID, Last: last, Bid: last, Ask: last, UpdatedAt: time.Now().UTC()})
 	}
 	return quotes, nil
-}
-
-func normalizeProductID(symbol string) string {
-	s := strings.ToUpper(strings.TrimSpace(symbol))
-	if strings.Contains(s, "-") {
-		return s
-	}
-	return s + "-USD"
 }
 
 func (c *Client) ensureProductCached(ctx context.Context, productID string) error {
