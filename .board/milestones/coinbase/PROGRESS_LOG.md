@@ -74,3 +74,22 @@
   - `go test ./internal/broker/... ./internal/brokerwire` ✅ pass
 - Next actions:
   - Start CB-06 persistence schema implementation.
+
+
+## 2026-05-06T00:00:00Z — Iteration 5 (CB-05 through CB-15 complete)
+- Attempted:
+  - Implemented Coinbase symbol canonicalization and read-path mapping.
+  - Added trading persistence schema, repository, append-only event triggers, and rollback guidance.
+  - Added internal order API scaffolding with idempotency replay and request-hash validation.
+  - Added deterministic policy engine, order state machine, reconciliation worker, and Coinbase paper execution adapter.
+  - Added trading metrics, rollout controls, alert rules, README/runbook documentation, and Compose wiring for the worker.
+  - Added failure-injection and replay/idempotency tests for the trading flow.
+- Acceptance criteria evidence:
+  - CB-05 through CB-15 marked done in the execution plan.
+  - `GET /metrics` now exposes trading counters and lag summaries.
+  - `go test ./...` ✅ pass
+- Tests:
+  - `go test ./internal/trading/... ./internal/broker/coinbase ./internal/brokerwire ./internal/config ./cmd/portfolio-api ./cmd/trading-worker` ✅ pass
+  - `go test ./...` ✅ pass
+- Next actions:
+  - None for this milestone; proceed to review / merge.

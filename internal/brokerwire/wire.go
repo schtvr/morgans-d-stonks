@@ -35,13 +35,15 @@ func New(cfg broker.Config) (broker.Broker, error) {
 
 // NewExecution returns an execution broker only when provider supports it.
 func NewExecution(cfg broker.Config) (broker.ExecutionBroker, error) {
-	b, err := New(cfg)
-	if err != nil {
-		return nil, err
+	switch cfg.Provider {
+	case "coinbase":
+		if cfg.Environment == "paper" || cfg.Environment == "" {
+			return coinbase.NewPaperExecution(), nil
+		}
+		return nil, fmt.Errorf("brokerwire: coinbase live execution is not enabled")
+	case "ibkr":
+		return nil, fmt.Errorf("brokerwire: ibkr execution is not implemented")
+	default:
+		return nil, fmt.Errorf("brokerwire: unknown BROKER_PROVIDER %q", cfg.Provider)
 	}
-	execB, ok := b.(broker.ExecutionBroker)
-	if !ok {
-		return nil, fmt.Errorf("brokerwire: provider mode %q does not support execution", cfg.Mode)
-	}
-	return execB, nil
 }

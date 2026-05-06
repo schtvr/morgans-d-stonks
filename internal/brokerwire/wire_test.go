@@ -27,6 +27,20 @@ func TestNewExecutionUnsupportedMode(t *testing.T) {
 	}
 }
 
+func TestNewExecutionCoinbasePaper(t *testing.T) {
+	b, err := NewExecution(broker.Config{Provider: "coinbase", Environment: "paper"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	order, err := b.PlaceOrder(context.Background(), broker.OrderIntent{Symbol: "BTC-USD", Side: "buy", Quantity: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if order.Status == "" {
+		t.Fatal("expected paper order status")
+	}
+}
+
 func TestNewCoinbase(t *testing.T) {
 	b, err := New(broker.Config{Provider: "coinbase"})
 	if err != nil {

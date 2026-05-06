@@ -1,6 +1,6 @@
 # Coinbase Milestone Execution Plan
 
-_Last updated: 2026-05-02T00:00:00Z_
+_Last updated: 2026-05-06T00:00:00Z_
 
 ## Topological order (dependency aware)
 1. CB-01
@@ -39,14 +39,14 @@ CB-01 → CB-02 → CB-06 → CB-07 → CB-09 → CB-10 → CB-12 → CB-13 → 
 | CB-02 | done | implementer/tester/reviewer | 2026-05-02T05:47:48Z | Domain models + tests complete |
 | CB-03 | done | implementer/tester/reviewer | 2026-05-04T00:00:00Z | Coinbase read adapter + metadata cache complete |
 | CB-04 | done | implementer/tester/reviewer | 2026-05-02T05:47:48Z | Broker config redesign complete |
-| CB-05 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-02, CB-03 |
-| CB-06 | in_progress | planner | 2026-05-02T05:47:48Z | Ready after CB-02 |
-| CB-07 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-04, CB-06 |
-| CB-08 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-02, CB-07 |
-| CB-09 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-06, CB-07 |
-| CB-10 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-06, CB-09 |
-| CB-11 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-08, CB-09 |
-| CB-12 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-07, CB-09, CB-10 |
-| CB-13 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-08, CB-11, CB-12 |
-| CB-14 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-11, CB-12 |
-| CB-15 | todo | planner | 2026-05-02T00:00:00Z | Waits on CB-12, CB-13, CB-14 |
+| CB-05 | done | implementer/tester/reviewer | 2026-05-06T00:00:00Z | Canonical symbol mapping and read-path wiring complete |
+| CB-06 | done | implementer/tester/reviewer | 2026-05-06T00:00:00Z | Trading persistence schema, repo, and rollback doc complete |
+| CB-07 | done | implementer/tester/reviewer | 2026-05-06T00:00:00Z | Internal order API, idempotency, and replay-safe responses complete |
+| CB-08 | done | implementer/tester/reviewer | 2026-05-06T00:00:00Z | Deterministic policy engine and allow/deny checks complete |
+| CB-09 | done | implementer/tester/reviewer | 2026-05-06T00:00:00Z | Order lifecycle state machine and guards complete |
+| CB-10 | done | implementer/tester/reviewer | 2026-05-06T00:00:00Z | Trading worker reconciliation loop complete |
+| CB-11 | done | implementer/tester/reviewer | 2026-05-06T00:00:00Z | Coinbase paper execution adapter complete |
+| CB-12 | done | implementer/tester/reviewer | 2026-05-06T00:00:00Z | Trading metrics, logging, and alert rule bundle complete |
+| CB-13 | done | implementer/tester/reviewer | 2026-05-06T00:00:00Z | Rollout controls, allowlists, and startup validation complete |
+| CB-14 | done | implementer/tester/reviewer | 2026-05-06T00:00:00Z | Failure-injection coverage for reject / partial / replay flows complete |
+| CB-15 | done | implementer/tester/reviewer | 2026-05-06T00:00:00Z | Go-live runbook and rollback checklist complete |
