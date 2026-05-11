@@ -10,8 +10,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 
-	mcptrades "github.com/schtvr/morgans-d-stonks/internal/mcp/trades"
 	"github.com/schtvr/morgans-d-stonks/internal/discord"
+	mcptrades "github.com/schtvr/morgans-d-stonks/internal/mcp/trades"
 	"github.com/schtvr/morgans-d-stonks/internal/trading"
 )
 

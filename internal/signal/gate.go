@@ -4,17 +4,17 @@ import "math"
 
 // GateInput is the deterministic input for health + significance filtering.
 type GateInput struct {
-	ProductID             string
-	Return5mPct           float64
-	RollingVol5mPct       float64
-	SpreadBps             float64
-	SpreadCapBps          float64
-	QuoteVolume24h        float64
-	MinQuoteVolume24h     float64
-	CooldownActive        bool
-	Restricted            bool
-	PersistsTwoOfThree    bool
-	FloorPct              float64
+	ProductID          string
+	Return5mPct        float64
+	RollingVol5mPct    float64
+	SpreadBps          float64
+	SpreadCapBps       float64
+	QuoteVolume24h     float64
+	MinQuoteVolume24h  float64
+	CooldownActive     bool
+	Restricted         bool
+	PersistsTwoOfThree bool
+	FloorPct           float64
 }
 
 // GateResult explains whether an event should be emitted and why.

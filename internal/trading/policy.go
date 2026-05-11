@@ -9,13 +9,13 @@ import (
 
 // Policy configures deterministic pre-trade checks.
 type Policy struct {
-	MaxNotional      float64
-	Reserve          float64
-	KillSwitch       bool
-	AllowedSymbols   []string
-	DeniedSymbols    []string
-	AllowedProviders []string
-	SymbolCooldown   time.Duration
+	MaxNotional       float64
+	Reserve           float64
+	KillSwitch        bool
+	AllowedSymbols    []string
+	DeniedSymbols     []string
+	AllowedProviders  []string
+	SymbolCooldown    time.Duration
 	GlobalMaxExposure float64
 }
 
