@@ -10,6 +10,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 
+	"github.com/schtvr/morgans-d-stonks/internal/discord"
+	mcptrades "github.com/schtvr/morgans-d-stonks/internal/mcp/trades"
 	"github.com/schtvr/morgans-d-stonks/internal/trading"
 )
 
@@ -120,6 +122,61 @@ func (a *app) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	a.metrics.ServeHTTP(w, r)
 }
 
+func (a *app) handleOpenOrdersList(w http.ResponseWriter, r *http.Request) {
+	orders, err := a.tradeSvc.ListOpen(r.Context())
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"orders": orders})
+}
+
+func (a *app) handleMCPOrderValidate(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeMCPTradingRequest(r, a.cfg.MCPSchemaVersion)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	dec, err := a.tradeSvc.Validate(r.Context(), req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, trading.OrderResponse{Decision: dec})
+}
+
+func (a *app) handleMCPOrderCreate(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeMCPTradingRequest(r, a.cfg.MCPSchemaVersion)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if req.IdempotencyKey == "" {
+		req.IdempotencyKey = r.Header.Get("X-Idempotency-Key")
+	}
+	if req.IdempotencyKey == "" {
+		http.Error(w, "idempotency_key is required", http.StatusBadRequest)
+		return
+	}
+	resp, err := a.tradeSvc.Create(r.Context(), req)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "idempotency key reuse") {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if a.dc != nil && a.cfg.DiscordWebhookURL != "" {
+		if msg := discord.TradingOutcomeWebhookContent(resp.Order, resp.Decision); msg != "" {
+			if err := a.dc.SendMessage(r.Context(), msg); err != nil && a.log != nil {
+				a.log.Warn("discord_trade_outcome", "err", err, "order_id", resp.Order.ID)
+			}
+		}
+	}
+	writeJSON(w, http.StatusCreated, resp)
+}
+
 func decodeTradingRequest(r *http.Request) (trading.OrderRequest, error) {
 	var req trading.OrderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -138,6 +195,10 @@ func decodeTradingRequest(r *http.Request) (trading.OrderRequest, error) {
 		req.ProviderEnv = "paper"
 	}
 	return req, nil
+}
+
+func decodeMCPTradingRequest(r *http.Request, schemaVersion string) (trading.OrderRequest, error) {
+	return mcptrades.DecodeAndMap(r, schemaVersion)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

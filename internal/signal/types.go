@@ -17,6 +17,7 @@ type SignalEvent struct {
 // CryptoAlert is the compact machine-readable payload sent to Discord/OpenClaw.
 type CryptoAlert struct {
 	Type            string    `json:"type"`
+	ReasonFlags     []string  `json:"reasonFlags,omitempty"`
 	Symbol          string    `json:"symbol"`
 	ProductID       string    `json:"productId,omitempty"`
 	Source          string    `json:"source,omitempty"`

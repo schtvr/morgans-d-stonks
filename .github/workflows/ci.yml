@@ -95,7 +95,7 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Lint
         run: npm run lint --if-present
@@ -122,7 +122,7 @@ jobs:
 
       - name: Prevent committed .env files
         run: |
-          if git ls-files | grep -E '(^|/)\.env($|\.)'; then
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vE '(^|/)\.env\.example$'; then
             echo "Tracked .env file detected; commit only .env.example templates." >&2
             exit 1
           fi

@@ -15,6 +15,8 @@ func TestLoadSignals_defaults(t *testing.T) {
 	t.Setenv("SIGNAL_STATE_PATH", "")
 	t.Setenv("DISCORD_WEBHOOK_URL", "")
 	t.Setenv("DISCORD_SIGNAL_BOT_MENTION", "")
+	t.Setenv("SIGNALS_WS_ENABLED", "")
+	t.Setenv("COINBASE_WS_URL", "")
 
 	cfg := LoadSignals()
 	if cfg.RulesPath != "./config/signals.yaml" {
@@ -41,12 +43,20 @@ func TestLoadSignals_defaults(t *testing.T) {
 	if cfg.DiscordWebhookURL != "" || cfg.DiscordBotMention != "" {
 		t.Fatalf("discord empty: webhook=%q mention=%q", cfg.DiscordWebhookURL, cfg.DiscordBotMention)
 	}
+	if cfg.WSEnabled {
+		t.Fatal("ws should be disabled by default")
+	}
+	if cfg.CoinbaseWSURL != "wss://advanced-trade-ws.coinbase.com" {
+		t.Fatalf("ws url default: %q", cfg.CoinbaseWSURL)
+	}
 }
 
 func TestLoadSignals_discordAndMention(t *testing.T) {
 	t.Setenv("DISCORD_WEBHOOK_URL", "  https://example.com/hook  ")
 	t.Setenv("DISCORD_SIGNAL_BOT_MENTION", "  <@999>  ")
 	t.Setenv("SIGNAL_MOVE_THRESHOLD_PCT", "0.75")
+	t.Setenv("SIGNALS_WS_ENABLED", "true")
+	t.Setenv("COINBASE_WS_URL", "wss://example.test/ws")
 
 	cfg := LoadSignals()
 	if cfg.DiscordWebhookURL != "https://example.com/hook" {
@@ -57,5 +67,11 @@ func TestLoadSignals_discordAndMention(t *testing.T) {
 	}
 	if cfg.ThresholdPct != 0.75 {
 		t.Fatalf("threshold trim: %v", cfg.ThresholdPct)
+	}
+	if !cfg.WSEnabled {
+		t.Fatal("expected ws enabled")
+	}
+	if cfg.CoinbaseWSURL != "wss://example.test/ws" {
+		t.Fatalf("ws url: %q", cfg.CoinbaseWSURL)
 	}
 }

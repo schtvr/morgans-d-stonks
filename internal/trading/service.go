@@ -30,11 +30,11 @@ func NewService(repo Repository, policy Policy) *Service {
 
 // Validate evaluates the request without mutating state.
 func (s *Service) Validate(ctx context.Context, req OrderRequest) (RiskDecision, error) {
-	_ = ctx
 	if err := Validate(req); err != nil {
 		return RiskDecision{}, err
 	}
-	return s.Policy.Evaluate(PolicyContext{Provider: req.Provider, AvailableCash: req.AvailableCash}, req), nil
+	openOrders, _ := s.Repo.ListOpenOrders(ctx)
+	return s.Policy.Evaluate(PolicyContext{Provider: req.Provider, AvailableCash: req.AvailableCash, OpenOrders: openOrders}, req), nil
 }
 
 // Create creates or replays an order request.
@@ -62,7 +62,8 @@ func (s *Service) Create(ctx context.Context, req OrderRequest) (*OrderResponse,
 		return nil, err
 	}
 
-	decision := s.Policy.Evaluate(PolicyContext{Provider: req.Provider, AvailableCash: req.AvailableCash}, req)
+	openOrders, _ := s.Repo.ListOpenOrders(ctx)
+	decision := s.Policy.Evaluate(PolicyContext{Provider: req.Provider, AvailableCash: req.AvailableCash, OpenOrders: openOrders}, req)
 	now := s.now()
 	order := Order{
 		ID:             uuid.NewString(),
@@ -117,6 +118,11 @@ func (s *Service) Create(ctx context.Context, req OrderRequest) (*OrderResponse,
 // Get returns an order by ID.
 func (s *Service) Get(ctx context.Context, id string) (*Order, error) {
 	return s.Repo.GetOrder(ctx, id)
+}
+
+// ListOpen returns open orders for activity visibility and operational checks.
+func (s *Service) ListOpen(ctx context.Context) ([]Order, error) {
+	return s.Repo.ListOpenOrders(ctx)
 }
 
 // Cancel marks an open order canceled.

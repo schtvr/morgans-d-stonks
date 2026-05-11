@@ -152,8 +152,25 @@ func runOnce(
 		if !decision.Alert {
 			continue
 		}
+		gate := sigpkg.EvaluateGate(sigpkg.GateInput{
+			ProductID:          symbol,
+			Return5mPct:        decision.DeltaPct,
+			RollingVol5mPct:    0,
+			SpreadBps:          0,
+			SpreadCapBps:       0,
+			QuoteVolume24h:     0,
+			MinQuoteVolume24h:  0,
+			CooldownActive:     false,
+			Restricted:         false,
+			PersistsTwoOfThree: true,
+			FloorPct:           thresholdPct,
+		})
+		if !gate.Emit {
+			skipped++
+			continue
+		}
 		fired++
-		alert := buildCryptoAlert(item, symbol, q.Last, decision, positions[symbol], now, thresholdPct)
+		alert := buildCryptoAlert(item, symbol, q.Last, decision, positions[symbol], now, thresholdPct, gate.ReasonFlags)
 		payload, err := discord.CryptoAlertWebhookContent(alert)
 		if err != nil {
 			return err
@@ -202,9 +219,10 @@ func persistRecentAlert(ctx context.Context, hc *http.Client, baseURL, apiKey st
 	return nil
 }
 
-func buildCryptoAlert(item portfolio.FollowedSymbol, symbol string, currentPrice float64, decision sigpkg.AlertDecision, pos broker.Position, firedAt time.Time, thresholdPct float64) sigpkg.CryptoAlert {
+func buildCryptoAlert(item portfolio.FollowedSymbol, symbol string, currentPrice float64, decision sigpkg.AlertDecision, pos broker.Position, firedAt time.Time, thresholdPct float64, reasonFlags []string) sigpkg.CryptoAlert {
 	alert := sigpkg.CryptoAlert{
 		Type:         "crypto_alert",
+		ReasonFlags:  reasonFlags,
 		Symbol:       symbol,
 		ProductID:    symbol,
 		Source:       item.Source,
