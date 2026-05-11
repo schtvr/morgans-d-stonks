@@ -122,7 +122,7 @@ jobs:
 
       - name: Prevent committed .env files
         run: |
-          if git ls-files | grep -E '(^|/)\.env($|\.)'; then
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vE '(^|/)\.env\.example$'; then
             echo "Tracked .env file detected; commit only .env.example templates." >&2
             exit 1
           fi
