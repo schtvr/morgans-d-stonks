@@ -14,6 +14,8 @@ type PortfolioAPI struct {
 	AuthUsername       string
 	AuthPassword       string
 	InternalAPIKey     string
+	MCPSchemaVersion   string
+	DiscordWebhookURL  string
 	SessionTTL         time.Duration
 	CORSAllowedOrigins []string
 }
@@ -26,6 +28,8 @@ func LoadPortfolioAPI() PortfolioAPI {
 		AuthUsername:       getenv("AUTH_USERNAME", "admin"),
 		AuthPassword:       getenv("AUTH_PASSWORD", "changeme"),
 		InternalAPIKey:     os.Getenv("INTERNAL_API_KEY"),
+		MCPSchemaVersion:   getenv("MCP_SCHEMA_VERSION", "v1"),
+		DiscordWebhookURL:  os.Getenv("DISCORD_WEBHOOK_URL"),
 		SessionTTL:         getenvDuration("SESSION_TTL", 24*time.Hour),
 		CORSAllowedOrigins: getenvCSVList("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"),
 	}

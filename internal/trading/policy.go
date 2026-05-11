@@ -15,12 +15,15 @@ type Policy struct {
 	AllowedSymbols   []string
 	DeniedSymbols    []string
 	AllowedProviders []string
+	SymbolCooldown   time.Duration
+	GlobalMaxExposure float64
 }
 
 // PolicyContext supplies runtime values for reserve checks.
 type PolicyContext struct {
 	Provider      string
 	AvailableCash float64
+	OpenOrders    []Order
 }
 
 // Evaluate applies all configured rules and returns a deterministic decision.
@@ -47,6 +50,47 @@ func (p Policy) Evaluate(ctx PolicyContext, req OrderRequest) RiskDecision {
 	}
 	if p.Reserve > 0 && ctx.AvailableCash > 0 && ctx.AvailableCash-notional < p.Reserve {
 		reasonCodes = append(reasonCodes, "reserve")
+	}
+	if p.SymbolCooldown > 0 {
+		for _, ord := range ctx.OpenOrders {
+			if !strings.EqualFold(ord.Symbol, req.Symbol) {
+				continue
+			}
+			if time.Since(ord.CreatedAt) < p.SymbolCooldown {
+				reasonCodes = append(reasonCodes, "symbol_cooldown")
+				break
+			}
+		}
+	}
+	if p.GlobalMaxExposure > 0 {
+		var exposure float64
+		for _, ord := range ctx.OpenOrders {
+			if ord.Side == OrderSideBuy {
+				exposure += ord.Notional
+			}
+		}
+		if req.Side == OrderSideBuy {
+			exposure += notional
+		}
+		if exposure > p.GlobalMaxExposure {
+			reasonCodes = append(reasonCodes, "global_max_exposure")
+		}
+	}
+	if req.Side == OrderSideSell {
+		var netQty float64
+		for _, ord := range ctx.OpenOrders {
+			if !strings.EqualFold(ord.Symbol, req.Symbol) {
+				continue
+			}
+			if ord.Side == OrderSideBuy {
+				netQty += ord.Quantity
+			} else if ord.Side == OrderSideSell {
+				netQty -= ord.Quantity
+			}
+		}
+		if netQty < req.Quantity {
+			reasonCodes = append(reasonCodes, "no_shorting")
+		}
 	}
 	sort.Strings(reasonCodes)
 	return RiskDecision{

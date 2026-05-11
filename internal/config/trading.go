@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 // Trading holds env for the trading API / worker rollout controls.
@@ -15,6 +16,8 @@ type Trading struct {
 	AllowedProviders []string
 	AllowedSymbols   []string
 	DeniedSymbols    []string
+	SymbolCooldown   time.Duration
+	GlobalMaxExposure float64
 }
 
 // LoadTrading loads trading rollout config from the environment.
@@ -27,6 +30,8 @@ func LoadTrading() Trading {
 		AllowedProviders: getenvCSVList("TRADING_ALLOWED_PROVIDERS", ""),
 		AllowedSymbols:   getenvCSVList("TRADING_ALLOWED_SYMBOLS", ""),
 		DeniedSymbols:    getenvCSVList("TRADING_DENIED_SYMBOLS", ""),
+		SymbolCooldown:   getenvDuration("TRADING_SYMBOL_COOLDOWN", 0),
+		GlobalMaxExposure: getenvFloat("TRADING_GLOBAL_MAX_EXPOSURE", 0),
 	}
 }
 

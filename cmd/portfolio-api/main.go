@@ -20,6 +20,7 @@ import (
 	"github.com/schtvr/morgans-d-stonks/internal/auth"
 	"github.com/schtvr/morgans-d-stonks/internal/broker"
 	"github.com/schtvr/morgans-d-stonks/internal/config"
+	"github.com/schtvr/morgans-d-stonks/internal/discord"
 	"github.com/schtvr/morgans-d-stonks/internal/logging"
 	"github.com/schtvr/morgans-d-stonks/internal/portfolio"
 	pgstore "github.com/schtvr/morgans-d-stonks/internal/portfolio/postgres"
@@ -85,8 +86,11 @@ func main() {
 			AllowedProviders: tradingCfg.AllowedProviders,
 			AllowedSymbols:   tradingCfg.AllowedSymbols,
 			DeniedSymbols:    tradingCfg.DeniedSymbols,
+			SymbolCooldown:   tradingCfg.SymbolCooldown,
+			GlobalMaxExposure: tradingCfg.GlobalMaxExposure,
 		}),
 		metrics: &trading.Metrics{},
+		dc:      discord.NewClient(cfg.DiscordWebhookURL),
 		log:     log,
 	}
 
@@ -118,6 +122,7 @@ func main() {
 		r.Get("/api/trading/alert-settings", app.handleAlertSettingsGet)
 		r.Put("/api/trading/alert-settings", app.handleAlertSettingsUpdate)
 		r.Get("/api/trading/recent-alerts", app.handleRecentAlertsList)
+		r.Get("/api/trading/orders/open", app.handleOpenOrdersList)
 	})
 
 	r.Group(func(r chi.Router) {
@@ -131,6 +136,13 @@ func main() {
 			r.Use(app.tradingGate)
 			r.Post("/validate", app.handleOrderValidate)
 			r.Post("/", app.handleOrderCreate)
+			r.Get("/{id}", app.handleOrderGet)
+			r.Post("/{id}/cancel", app.handleOrderCancel)
+		})
+		r.Route("/mcp/v1/trades", func(r chi.Router) {
+			r.Use(app.tradingGate)
+			r.Post("/validate", app.handleMCPOrderValidate)
+			r.Post("/create", app.handleMCPOrderCreate)
 			r.Get("/{id}", app.handleOrderGet)
 			r.Post("/{id}/cancel", app.handleOrderCancel)
 		})
@@ -163,6 +175,7 @@ type app struct {
 	tradeRepo  *tradepg.Repository
 	tradeSvc   *trading.Service
 	metrics    *trading.Metrics
+	dc         *discord.Client
 	log        *slog.Logger
 }
 

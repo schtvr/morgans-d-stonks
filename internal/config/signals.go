@@ -19,6 +19,8 @@ type Signals struct {
 	// DiscordBotMention is optional raw Discord mention text (e.g. "<@123456789>" or "<@&roleId>").
 	// The crypto alert payload itself remains machine-readable JSON.
 	DiscordBotMention string
+	WSEnabled         bool
+	CoinbaseWSURL     string
 }
 
 // LoadSignals loads signals service configuration from the environment.
@@ -33,5 +35,7 @@ func LoadSignals() Signals {
 		StatePath:         getenv("SIGNAL_STATE_PATH", "./data/signal-state.json"),
 		DiscordWebhookURL: strings.TrimSpace(os.Getenv("DISCORD_WEBHOOK_URL")),
 		DiscordBotMention: strings.TrimSpace(os.Getenv("DISCORD_SIGNAL_BOT_MENTION")),
+		WSEnabled:         getenvBool("SIGNALS_WS_ENABLED", false),
+		CoinbaseWSURL:     getenv("COINBASE_WS_URL", "wss://advanced-trade-ws.coinbase.com"),
 	}
 }
