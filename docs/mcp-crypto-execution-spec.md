@@ -73,7 +73,7 @@ Creates an order in configured trading environment.
 ```json
 {
   "schema_version": "v1",
-  "idempotency_key": "644ca7d4-6c52-4a5c-b3df-3bbf7bf0c9f8",
+  "idempotency_key": "abcd-1234",
   "order": {
     "product_id": "ETH-USD",
     "side": "sell",
