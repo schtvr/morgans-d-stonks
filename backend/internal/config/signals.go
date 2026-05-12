@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Signals holds environment for cmd/signals.
+// Signals holds environment for backend/cmd/signals.
 type Signals struct {
 	RulesPath         string
 	Cooldown          time.Duration

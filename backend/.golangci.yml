@@ -13,4 +13,4 @@ linters:
     - unused
   exclusions:
     paths:
-      - apps/web/node_modules
+      - ../frontend/node_modules

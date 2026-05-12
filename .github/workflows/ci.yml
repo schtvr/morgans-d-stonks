@@ -30,26 +30,27 @@ jobs:
         with:
           filters: |
             go:
-              - 'go.mod'
-              - 'go.sum'
-              - 'cmd/**'
-              - 'internal/**'
+              - 'backend/go.mod'
+              - 'backend/go.sum'
+              - 'backend/cmd/**'
+              - 'backend/internal/**'
+              - 'backend/config/**'
               - 'pkg/**'
-              - 'config/**'
-              - 'Dockerfile'
+              - 'backend/Dockerfile'
               - 'docker-compose*.yml'
             web:
-              - 'apps/web/**'
+              - 'frontend/**'
             security:
               - '.github/workflows/**'
               - '.gitleaks.toml'
               - '.env.example'
-              - 'go.mod'
-              - 'go.sum'
-              - 'cmd/**'
-              - 'internal/**'
+              - 'backend/go.mod'
+              - 'backend/go.sum'
+              - 'backend/cmd/**'
+              - 'backend/internal/**'
+              - 'backend/config/**'
               - 'pkg/**'
-              - 'apps/web/**'
+              - 'frontend/**'
 
   go:
     name: Go tests
@@ -63,16 +64,19 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version-file: backend/go.mod
           cache: true
 
       - name: Go fmt check
+        working-directory: backend
         run: test -z "$(gofmt -l .)"
 
       - name: Go vet
+        working-directory: backend
         run: go vet ./...
 
       - name: Go test
+        working-directory: backend
         run: go test ./...
 
   web:
@@ -82,7 +86,7 @@ jobs:
     if: github.event_name == 'push' || needs.changes.outputs.web == 'true'
     defaults:
       run:
-        working-directory: apps/web
+        working-directory: frontend
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -92,7 +96,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: apps/web/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci --legacy-peer-deps

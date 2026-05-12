@@ -2,6 +2,6 @@
 services:
   web:
     volumes:
-      - ./apps/web:/app
+      - ./frontend:/app
       - /app/node_modules
     command: npm run dev

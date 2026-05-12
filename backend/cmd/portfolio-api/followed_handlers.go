@@ -13,7 +13,6 @@ import (
 
 	"github.com/schtvr/morgans-d-stonks/internal/broker/coinbase"
 	"github.com/schtvr/morgans-d-stonks/internal/portfolio"
-	sigpkg "github.com/schtvr/morgans-d-stonks/internal/signal"
 )
 
 func (a *app) handleFollowedSymbolsList(w http.ResponseWriter, r *http.Request) {
@@ -57,15 +56,6 @@ func (a *app) handleFollowedSymbolRemove(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (a *app) handleInternalFollowedSymbols(w http.ResponseWriter, r *http.Request) {
-	items, err := a.repo.ListFollowedSymbols(r.Context())
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, http.StatusOK, portfolio.FollowedSymbolsResponse{Symbols: items})
-}
-
 func (a *app) handleAlertSettingsGet(w http.ResponseWriter, r *http.Request) {
 	settings, err := a.repo.GetSignalSettings(r.Context())
 	if err != nil {
@@ -96,15 +86,6 @@ func (a *app) handleAlertSettingsUpdate(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, settings)
 }
 
-func (a *app) handleInternalSignalSettings(w http.ResponseWriter, r *http.Request) {
-	settings, err := a.repo.GetSignalSettings(r.Context())
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, http.StatusOK, settings)
-}
-
 func (a *app) handleRecentAlertsList(w http.ResponseWriter, r *http.Request) {
 	limit := parsePositiveInt(r.URL.Query().Get("limit"), 20)
 	items, err := a.repo.ListRecentAlerts(r.Context(), limit)
@@ -113,46 +94,6 @@ func (a *app) handleRecentAlertsList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, portfolio.RecentAlertsResponse{Alerts: items})
-}
-
-func (a *app) handleInternalRecentAlertCreate(w http.ResponseWriter, r *http.Request) {
-	alert, err := decodeCryptoAlert(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if err := a.repo.InsertRecentAlert(r.Context(), alert); err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-	if a.log != nil {
-		a.log.Info("recent_alert_insert", "symbol", alert.Symbol, "delta_pct", alert.DeltaPct, "threshold_pct", alert.ThresholdPct)
-	}
-	writeJSON(w, http.StatusCreated, alert)
-}
-
-func decodeCryptoAlert(r *http.Request) (portfolio.RecentAlert, error) {
-	var payload sigpkg.CryptoAlert
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		return portfolio.RecentAlert{}, err
-	}
-	return portfolio.RecentAlert{
-		Type:            payload.Type,
-		Symbol:          payload.Symbol,
-		ProductID:       payload.ProductID,
-		Source:          payload.Source,
-		CurrentPrice:    payload.CurrentPrice,
-		PreviousPrice:   payload.PreviousPrice,
-		DeltaAmount:     payload.DeltaAmount,
-		DeltaPct:        payload.DeltaPct,
-		ThresholdPct:    payload.ThresholdPct,
-		Quantity:        payload.Quantity,
-		AvgCost:         payload.AvgCost,
-		CostBasis:       payload.CostBasis,
-		UnrealizedPL:    payload.UnrealizedPL,
-		UnrealizedPLPct: payload.UnrealizedPLPct,
-		FiredAt:         payload.FiredAt,
-	}, nil
 }
 
 func decodeFollowedSymbolRequest(r *http.Request) (string, error) {

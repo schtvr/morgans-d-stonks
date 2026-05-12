@@ -3,6 +3,10 @@ const internal =
   process.env.PORTFOLIO_API_INTERNAL_URL ?? "http://127.0.0.1:8080";
 
 const nextConfig = {
+  experimental: {
+    webpackBuildWorker: false,
+    workerThreads: true,
+  },
   async rewrites() {
     const base = internal.replace(/\/$/, "");
     return [

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// PortfolioAPI holds env for cmd/portfolio-api.
+// PortfolioAPI holds env for backend/cmd/portfolio-api.
 type PortfolioAPI struct {
 	HTTPAddr           string
 	DatabaseURL        string
