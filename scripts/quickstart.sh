@@ -65,6 +65,17 @@ write_env_file() {
     printf 'POSTGRES_DB=%s\n' "$POSTGRES_DB"
     printf 'DATABASE_URL=%s\n' "$DATABASE_URL"
     printf '%s\n' ''
+    printf '%s\n' '# Broker routing'
+    printf 'BROKER_PROVIDER=ibkr\n'
+    printf 'BROKER_ENV=paper\n'
+    printf 'INGEST_BROKER_PROVIDER=ibkr\n'
+    printf 'INGEST_BROKER_ENV=paper\n'
+    printf 'INGEST_IBKR_MODE=%s\n' "$IBKR_MODE"
+    printf 'PORTFOLIO_BROKER_PROVIDER=coinbase\n'
+    printf 'PORTFOLIO_BROKER_ENV=paper\n'
+    printf 'TRADING_BROKER_PROVIDER=coinbase\n'
+    printf 'TRADING_BROKER_ENV=paper\n'
+    printf '%s\n' ''
     printf '%s\n' '# IBKR (use IBKR_MODE=paper or live when a real gateway is available)'
     printf 'IBKR_GATEWAY_HOST=ib-gateway\n'
     printf 'IBKR_GATEWAY_PORT=4001\n'
@@ -86,7 +97,7 @@ write_env_file() {
     printf 'SIGNAL_RULES_PATH=./config/signals.yaml\n'
     printf 'SIGNAL_COOLDOWN=1h\n'
     printf 'SIGNAL_INTERVAL=5m\n'
-    printf 'SIGNAL_DEDUP_PATH=./data/signal-dedup.json\n'
+    printf 'SIGNAL_STATE_PATH=./data/signal-state.json\n'
     printf '%s\n' ''
     printf '%s\n' '# IBKR Client Portal (paper/live; optional)'
     printf 'IBKR_CLIENT_PORTAL_PORT=5000\n'

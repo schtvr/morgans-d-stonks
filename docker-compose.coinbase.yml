@@ -1,0 +1,27 @@
+services:
+  portfolio-api:
+    environment:
+      BROKER_PROVIDER: coinbase
+      BROKER_ENV: paper
+      TRADING_ENABLED: "true"
+      TRADING_KILL_SWITCH: "false"
+      TRADING_ALLOWED_PROVIDERS: coinbase
+      TRADING_ALLOWED_SYMBOLS: BTC-USD,ETH-USD
+      TRADING_MAX_NOTIONAL: "1000"
+      TRADING_RESERVE: "0"
+      TRADING_GLOBAL_MAX_EXPOSURE: "5000"
+      TRADING_SYMBOL_COOLDOWN: 5m
+
+  trading-worker:
+    environment:
+      BROKER_PROVIDER: coinbase
+      BROKER_ENV: paper
+      TRADING_ENABLED: "true"
+      TRADING_KILL_SWITCH: "false"
+      TRADING_ALLOWED_PROVIDERS: coinbase
+      TRADING_ALLOWED_SYMBOLS: BTC-USD,ETH-USD
+      TRADING_MAX_NOTIONAL: "1000"
+      TRADING_RESERVE: "0"
+      TRADING_GLOBAL_MAX_EXPOSURE: "5000"
+      TRADING_SYMBOL_COOLDOWN: 5m
+      TRADING_INTERVAL: 30s

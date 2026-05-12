@@ -4,8 +4,8 @@ US equities portfolio tracker with a crypto-only Coinbase alert/trading MVP, bui
 
 ## Stack
 
-- **Backend**: Go services (`portfolio-api`, `ingest`, `signals`)
-- **Frontend**: Next.js 14 + Tailwind + shadcn/ui
+- **Backend**: Go services in `backend/` (`portfolio-api`, `ingest`, `signals`, `trading-worker`)
+- **Frontend**: Next.js 14 + Tailwind + shadcn/ui in `frontend/`
 - **Broker**: Interactive Brokers (paper mode by default)
 - **Trading**: Coinbase order scaffolding, crypto alerting, paper execution simulation, and rollout controls
 - **DB**: Postgres 16
@@ -45,19 +45,22 @@ flowchart TB
 
 1. `cp .env.example .env` and set at least `DATABASE_URL`, `INTERNAL_API_KEY`, and optional `DISCORD_WEBHOOK_URL`.
 2. `docker compose up` - starts web, API, ingest, signals, Postgres, and an IB Gateway stub container.
-3. Web UI: http://localhost:3000 (sign in with `AUTH_USERNAME` / `AUTH_PASSWORD` from `.env`).
-4. API health: http://localhost:8080/api/health
+3. `docker compose -f docker-compose.yml -f docker-compose.coinbase.yml up -d --build` - starts the same stack with Coinbase paper execution enabled for `portfolio-api` and `trading-worker`.
+4. Web UI: http://localhost:3000 (sign in with `AUTH_USERNAME` / `AUTH_PASSWORD` from `.env`).
+5. API health: http://localhost:8080/api/health
 
 ### IB Gateway
 
-- Select provider with `BROKER_PROVIDER` (`ibkr` default, `coinbase` reserved for follow-up work).
-- For IBKR development without a live gateway, set `IBKR_MODE=mock` (used by `ingest`).
+- `ingest` stays on `INGEST_BROKER_PROVIDER=ibkr` with `INGEST_IBKR_MODE=mock` for local Docker.
+- `portfolio-api` and `trading-worker` use Coinbase paper defaults in Compose via `PORTFOLIO_BROKER_PROVIDER=coinbase` and `TRADING_BROKER_PROVIDER=coinbase`.
+- For direct binary runs, `BROKER_PROVIDER` and `BROKER_ENV` still control the broker selection.
 - With IB Gateway on the host (not in Docker), set `IBKR_GATEWAY_HOST=host.docker.internal` and configure Client Portal / TWS ports per [internal/broker/ibkr/DECISION.md](internal/broker/ibkr/DECISION.md).
 
 ### Coinbase trading rollout
 
-- Keep `TRADING_ENABLED=false` until the allowlists and max-notional controls are configured.
-- The Coinbase paper execution adapter is available when `BROKER_PROVIDER=coinbase` and `BROKER_ENV=paper`.
+- Use `docker-compose.coinbase.yml` when you want the paper Coinbase worker and portfolio API to boot together with the dashboard.
+- Keep `TRADING_ENABLED=false` in the base stack until the allowlists and max-notional controls are configured.
+- The Coinbase paper execution adapter is enabled in the override with `BROKER_PROVIDER=coinbase` and `BROKER_ENV=paper`.
 - The trading worker and API expose Prometheus-compatible metrics on `GET /metrics`.
 - Operational guidance lives in [docs/runbooks/coinbase-trading.md](docs/runbooks/coinbase-trading.md).
 
@@ -70,22 +73,20 @@ flowchart TB
 
 ### Stylekit (dashboard)
 
-The UI lives in `apps/web` and uses **Tailwind CSS** plus **shadcn/ui**. To add more primitives:
+The UI lives in `frontend/` and uses **Tailwind CSS** plus **shadcn/ui**. To add more primitives:
 
 ```bash
-cd apps/web
+cd frontend
 npx shadcn@latest add dialog
 ```
 
-Theme tokens and radii are driven by CSS variables in `apps/web/app/globals.css` and `apps/web/tailwind.config.ts`.
+Theme tokens and radii are driven by CSS variables in `frontend/app/globals.css` and `frontend/tailwind.config.ts`.
 
 ## Project structure
 
 ```
-apps/web/        Next.js dashboard
-cmd/             Go service entry points
-internal/        Go business logic (not public)
-config/          Runtime config files (e.g. signals.yaml)
+backend/         Go backend module
+frontend/        Next.js dashboard
 .agent/epics/    Agent instruction files per epic
 ```
 

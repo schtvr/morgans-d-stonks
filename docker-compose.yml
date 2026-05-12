@@ -1,7 +1,7 @@
 services:
   web:
     build:
-      context: ./apps/web
+      context: ./frontend
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
@@ -17,7 +17,7 @@ services:
 
   portfolio-api:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
       args:
         BIN: portfolio-api
@@ -28,6 +28,8 @@ services:
       AUTH_USERNAME: ${AUTH_USERNAME:-admin}
       AUTH_PASSWORD: ${AUTH_PASSWORD:-changeme}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-changeme}
+      BROKER_PROVIDER: ${PORTFOLIO_BROKER_PROVIDER:-coinbase}
+      BROKER_ENV: ${PORTFOLIO_BROKER_ENV:-paper}
       HTTP_ADDR: :8080
       # Origins allowed for browser requests (add http://<LAN-IP>:3000 for other devices on your network).
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
@@ -39,14 +41,16 @@ services:
 
   ingest:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
       args:
         BIN: ingest
     environment:
-      IBKR_MODE: ${IBKR_MODE:-mock}
-      IBKR_GATEWAY_HOST: ${IBKR_GATEWAY_HOST:-ib-gateway}
-      IBKR_GATEWAY_PORT: ${IBKR_GATEWAY_PORT:-4001}
+      BROKER_PROVIDER: ${INGEST_BROKER_PROVIDER:-ibkr}
+      BROKER_ENV: ${INGEST_BROKER_ENV:-paper}
+      IBKR_MODE: ${INGEST_IBKR_MODE:-mock}
+      IBKR_GATEWAY_HOST: ${INGEST_IBKR_GATEWAY_HOST:-ib-gateway}
+      IBKR_GATEWAY_PORT: ${INGEST_IBKR_GATEWAY_PORT:-4001}
       INGEST_INTERVAL: ${INGEST_INTERVAL:-10m}
       PORTFOLIO_API_URL: ${PORTFOLIO_API_URL:-http://portfolio-api:8080}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-changeme}
@@ -59,7 +63,7 @@ services:
 
   signals:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
       args:
         BIN: signals
@@ -82,14 +86,14 @@ services:
 
   trading-worker:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
       args:
         BIN: trading-worker
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgres://portfolio:changeme@db:5432/portfolio?sslmode=disable}
-      BROKER_PROVIDER: ${BROKER_PROVIDER:-coinbase}
-      BROKER_ENV: ${BROKER_ENV:-paper}
+      BROKER_PROVIDER: ${TRADING_BROKER_PROVIDER:-coinbase}
+      BROKER_ENV: ${TRADING_BROKER_ENV:-paper}
       COINBASE_READ_API_KEY: ${COINBASE_READ_API_KEY:-}
       COINBASE_READ_API_SECRET: ${COINBASE_READ_API_SECRET:-}
       COINBASE_TRADE_API_KEY: ${COINBASE_TRADE_API_KEY:-}
