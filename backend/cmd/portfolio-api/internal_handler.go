@@ -62,6 +62,14 @@ func (a *app) handleInternalFollowedSymbols(w http.ResponseWriter, r *http.Reque
 func (a *app) handleInternalSignalSettings(w http.ResponseWriter, r *http.Request) {
 	settings, err := a.repo.GetSignalSettings(r.Context())
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeJSON(w, http.StatusOK, portfolio.SignalSettings{
+				MoveThresholdPct: 1.0,
+				Cooldown:         "15m",
+				UpdatedAt:        time.Now().UTC(),
+			})
+			return
+		}
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}

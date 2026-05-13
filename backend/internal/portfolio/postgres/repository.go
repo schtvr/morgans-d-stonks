@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -133,16 +134,18 @@ ON CONFLICT (singleton) DO UPDATE SET
 // GetSignalSettings returns the persisted crypto alert settings.
 func (r *Repository) GetSignalSettings(ctx context.Context) (*portfolio.SignalSettings, error) {
 	const q = `
-SELECT move_threshold_pct, cooldown, updated_at
+SELECT move_threshold_pct, extract(epoch from cooldown)::bigint, updated_at
 FROM signal_settings
 WHERE singleton = TRUE`
 	var settings portfolio.SignalSettings
-	if err := r.pool.QueryRow(ctx, q).Scan(&settings.MoveThresholdPct, &settings.Cooldown, &settings.UpdatedAt); err != nil {
+	var cooldownSecs int64
+	if err := r.pool.QueryRow(ctx, q).Scan(&settings.MoveThresholdPct, &cooldownSecs, &settings.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, pgx.ErrNoRows
 		}
 		return nil, err
 	}
+	settings.Cooldown = fmt.Sprintf("%ds", cooldownSecs)
 	return &settings, nil
 }
 

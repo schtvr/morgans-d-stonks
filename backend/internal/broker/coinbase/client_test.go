@@ -13,7 +13,7 @@ func TestQuotesRetryAndCache(t *testing.T) {
 	var spotHits int32
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/api/v3/brokerage/products":
+		case "/api/v3/brokerage/market/products":
 			atomic.AddInt32(&productsHits, 1)
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"products":[{"product_id":"BTC-USD","base_increment":"0.00000001","quote_increment":"0.01","trading_disabled":false}]}`))
@@ -58,7 +58,7 @@ func TestPositionsAndAccountSummaryComputeMarketValue(t *testing.T) {
 		case "/v2/accounts":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"accounts":[{"currency":"BTC","available_balance":"2"},{"currency":"USD","available_balance":"10"}]}`))
-		case "/api/v3/brokerage/products":
+		case "/api/v3/brokerage/market/products":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"products":[{"product_id":"BTC-USD","base_increment":"0.00000001","quote_increment":"0.01","trading_disabled":false},{"product_id":"USD-USD","base_increment":"0.01","quote_increment":"0.01","trading_disabled":false}]}`))
 		case "/v2/prices/BTC-USD/spot":

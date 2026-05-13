@@ -63,7 +63,7 @@ func TestRunOnce_cryptoAlertThreshold(t *testing.T) {
 		case "/internal/recent-alerts":
 			recentAlertCalls.Add(1)
 			w.WriteHeader(http.StatusCreated)
-		case "/api/v3/brokerage/products":
+		case "/api/v3/brokerage/market/products":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = io.WriteString(w, `{"products":[{"product_id":"BTC-USD","base_increment":"0.00000001","quote_increment":"0.01","trading_disabled":false}]}`)
 		case "/v2/prices/BTC-USD/spot":

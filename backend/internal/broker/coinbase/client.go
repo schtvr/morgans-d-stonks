@@ -143,7 +143,8 @@ func (c *Client) ensureProductCached(ctx context.Context, productID string) erro
 			TradingDisabled bool   `json:"trading_disabled"`
 		} `json:"products"`
 	}
-	if err := c.doJSON(ctx, http.MethodGet, "/api/v3/brokerage/products", nil, &resp); err != nil {
+	// Public market endpoint (unauthenticated). /api/v3/brokerage/products requires JWT and returns 401 without auth.
+	if err := c.doJSON(ctx, http.MethodGet, "/api/v3/brokerage/market/products", nil, &resp); err != nil {
 		return err
 	}
 	c.mu.Lock()
