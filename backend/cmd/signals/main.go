@@ -221,15 +221,17 @@ func persistRecentAlert(ctx context.Context, hc *http.Client, baseURL, apiKey st
 
 func buildCryptoAlert(item portfolio.FollowedSymbol, symbol string, currentPrice float64, decision sigpkg.AlertDecision, pos broker.Position, firedAt time.Time, thresholdPct float64, reasonFlags []string) sigpkg.CryptoAlert {
 	alert := sigpkg.CryptoAlert{
-		Type:         "crypto_alert",
-		ReasonFlags:  reasonFlags,
-		Symbol:       symbol,
-		ProductID:    symbol,
-		Source:       item.Source,
-		CurrentPrice: currentPrice,
-		DeltaPct:     decision.DeltaPct,
-		ThresholdPct: thresholdPct,
-		FiredAt:      firedAt,
+		SchemaVersion: sigpkg.CryptoSignalSchemaVersion,
+		ID:            stableCryptoAlertID(symbol, firedAt),
+		Type:          "crypto_price_move",
+		ReasonFlags:   reasonFlags,
+		Symbol:        symbol,
+		ProductID:     symbol,
+		Source:        item.Source,
+		CurrentPrice:  currentPrice,
+		DeltaPct:      decision.DeltaPct,
+		ThresholdPct:  thresholdPct,
+		FiredAt:       firedAt,
 	}
 	if decision.PreviousPrice > 0 {
 		prev := decision.PreviousPrice
@@ -256,6 +258,11 @@ func buildCryptoAlert(item portfolio.FollowedSymbol, symbol string, currentPrice
 		}
 	}
 	return alert
+}
+
+func stableCryptoAlertID(symbol string, firedAt time.Time) string {
+	sym := strings.ToLower(strings.ReplaceAll(symbol, "-", "_"))
+	return fmt.Sprintf("%s-%s", sym, firedAt.UTC().Format("20060102T150405Z"))
 }
 
 func quoteForSymbol(ctx context.Context, c *coinbase.Client, symbol string) (*broker.Quote, error) {

@@ -89,7 +89,7 @@ func TestRunOnce_cryptoAlertThreshold(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(buf.String(), `"crypto_alert"`) {
+	if strings.Contains(buf.String(), "crypto_price_move") {
 		t.Fatalf("unexpected alert on baseline tick: %s", buf.String())
 	}
 
@@ -100,8 +100,8 @@ func TestRunOnce_cryptoAlertThreshold(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, `"crypto_alert"`) {
-		t.Fatalf("missing crypto_alert log: %s", out)
+	if !strings.Contains(out, "crypto_price_move") {
+		t.Fatalf("missing crypto_price_move log: %s", out)
 	}
 	if !strings.Contains(out, `"symbol":"BTC-USD"`) && !strings.Contains(out, "BTC-USD") {
 		t.Fatalf("missing symbol context: %s", out)

@@ -119,7 +119,9 @@ func main() {
 		r.Get("/api/trading/alert-settings", app.handleAlertSettingsGet)
 		r.Put("/api/trading/alert-settings", app.handleAlertSettingsUpdate)
 		r.Get("/api/trading/recent-alerts", app.handleRecentAlertsList)
-		r.Get("/api/trading/orders/open", app.handleOpenOrdersList)
+		if app.tradingCfg.Enabled {
+			r.Get("/api/trading/orders/open", app.handleOpenOrdersList)
+		}
 	})
 
 	r.Group(func(r chi.Router) {
@@ -129,20 +131,22 @@ func main() {
 		r.Get("/internal/followed-symbols", app.handleInternalFollowedSymbols)
 		r.Get("/internal/signal-settings", app.handleInternalSignalSettings)
 		r.Post("/internal/recent-alerts", app.handleInternalRecentAlertCreate)
-		r.Route("/internal/orders", func(r chi.Router) {
-			r.Use(app.tradingGate)
-			r.Post("/validate", app.handleOrderValidate)
-			r.Post("/", app.handleOrderCreate)
-			r.Get("/{id}", app.handleOrderGet)
-			r.Post("/{id}/cancel", app.handleOrderCancel)
-		})
-		r.Route("/mcp/v1/trades", func(r chi.Router) {
-			r.Use(app.tradingGate)
-			r.Post("/validate", app.handleMCPOrderValidate)
-			r.Post("/create", app.handleMCPOrderCreate)
-			r.Get("/{id}", app.handleOrderGet)
-			r.Post("/{id}/cancel", app.handleOrderCancel)
-		})
+		if app.tradingCfg.Enabled {
+			r.Route("/internal/orders", func(r chi.Router) {
+				r.Use(app.tradingGate)
+				r.Post("/validate", app.handleOrderValidate)
+				r.Post("/", app.handleOrderCreate)
+				r.Get("/{id}", app.handleOrderGet)
+				r.Post("/{id}/cancel", app.handleOrderCancel)
+			})
+			r.Route("/mcp/v1/trades", func(r chi.Router) {
+				r.Use(app.tradingGate)
+				r.Post("/validate", app.handleMCPOrderValidate)
+				r.Post("/create", app.handleMCPOrderCreate)
+				r.Get("/{id}", app.handleOrderGet)
+				r.Post("/{id}/cancel", app.handleOrderCancel)
+			})
+		}
 	})
 
 	srv := &http.Server{

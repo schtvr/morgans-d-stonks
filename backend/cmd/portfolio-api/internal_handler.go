@@ -97,6 +97,10 @@ func decodeCryptoAlert(r *http.Request) (portfolio.RecentAlert, error) {
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		return portfolio.RecentAlert{}, err
 	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return portfolio.RecentAlert{}, err
+	}
 	return portfolio.RecentAlert{
 		Type:            payload.Type,
 		Symbol:          payload.Symbol,
@@ -113,6 +117,7 @@ func decodeCryptoAlert(r *http.Request) (portfolio.RecentAlert, error) {
 		UnrealizedPL:    payload.UnrealizedPL,
 		UnrealizedPLPct: payload.UnrealizedPLPct,
 		FiredAt:         payload.FiredAt,
+		PayloadJSON:     raw,
 	}, nil
 }
 

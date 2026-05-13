@@ -1,19 +1,18 @@
 # morgans-d-stonks
 
-US equities portfolio tracker with a crypto-only Coinbase alert/trading MVP, built with Go services + Next.js dashboard and deployed via Docker Compose.
+Local homelab **crypto portfolio and watchlist** dashboard with deterministic **Coinbase** price-move alerts. Alerts post to **Discord** as a short summary plus fenced **`crypto_signal_v1`** JSON for **OpenClaw** (and similar agents); order execution and IBKR are **backlog**, not the default path.
 
 ## Stack
 
-- **Backend**: Go services in `backend/` (`portfolio-api`, `ingest`, `signals`, `trading-worker`)
-- **Frontend**: Next.js 14 + Tailwind + shadcn/ui in `frontend/`
-- **Broker**: Interactive Brokers (paper mode by default)
-- **Trading**: Coinbase order scaffolding, crypto alerting, paper execution simulation, and rollout controls
+- **Backend**: Go in `backend/` — `portfolio-api`, `ingest`, `signals`
+- **Frontend**: Next.js + Tailwind + shadcn/ui in `frontend/`
+- **Market data**: Coinbase read API (balances + spot prices for snapshots and signal quotes)
 - **DB**: Postgres 16
 - **Infra**: Docker Compose
 
 ## Architecture
 
-Services run on a shared Docker network (`portfolio-net`). The dashboard talks to the portfolio API; ingest and signals use the internal API key to call the API. Ingest pulls market and account data from IB Gateway (or a mock when `IBKR_MODE=mock`). The signals service watches followed Coinbase crypto symbols and emits thresholded alerts.
+Services share `portfolio-net`. The dashboard talks to `portfolio-api`. `ingest` writes snapshots via the internal API. `signals` reads followed symbols and settings, evaluates price moves, persists recent alerts, and optionally posts to Discord.
 
 ```mermaid
 flowchart TB
@@ -21,13 +20,12 @@ flowchart TB
     B[Browser]
   end
 
-  subgraph Compose["Docker Compose"]
+  subgraph Compose["Docker Compose (MVP)"]
     W[web<br/>Next.js :3000]
     API[portfolio-api<br/>Go :8080]
     DB[(Postgres :5432)]
     ING[ingest<br/>Go]
     SIG[signals<br/>Go]
-    IB[ib-gateway<br/>stub / TWS]
   end
 
   DC[Discord]
@@ -35,63 +33,57 @@ flowchart TB
   B -->|session / dashboard| W
   W -->|HTTP API| API
   API --> DB
-  ING -->|IBKR| IB
+  ING -->|Coinbase read| CB[Coinbase API]
   ING -->|internal snapshots| API
-  SIG -->|followed symbols + latest snapshot| API
-  SIG -.->|optional webhook| DC
+  SIG -->|followed symbols + quotes| CB
+  SIG -->|internal API| API
+  SIG -.->|webhook| DC
 ```
 
 ## Local development
 
-1. `cp .env.example .env` and set at least `DATABASE_URL`, `INTERNAL_API_KEY`, and optional `DISCORD_WEBHOOK_URL`.
-2. `docker compose up` - starts web, API, ingest, signals, Postgres, and an IB Gateway stub container.
-3. `docker compose -f docker-compose.yml -f docker-compose.coinbase.yml up -d --build` - starts the same stack with Coinbase paper execution enabled for `portfolio-api` and `trading-worker`.
-4. Web UI: http://localhost:3000 (sign in with `AUTH_USERNAME` / `AUTH_PASSWORD` from `.env`).
-5. API health: http://localhost:8080/api/health
+1. `cp .env.example .env` and set **`DATABASE_URL`**, **`INTERNAL_API_KEY`**, **`COINBASE_READ_API_KEY`**, **`COINBASE_READ_API_SECRET`**, and optional **`DISCORD_WEBHOOK_URL`**.
+2. `docker compose up --build` — starts **web**, **portfolio-api**, **ingest**, **signals**, and **Postgres** (no `ib-gateway` or `trading-worker` in the default stack).
+3. Open http://localhost:3000 — sign in with **`AUTH_USERNAME`** / **`AUTH_PASSWORD`** from `.env`.
+4. API health: http://localhost:8080/api/health
 
-### IB Gateway
+Use Node **22.22.0** for local frontend work (see `frontend/.nvmrc`).
 
-- `ingest` stays on `INGEST_BROKER_PROVIDER=ibkr` with `INGEST_IBKR_MODE=mock` for local Docker.
-- `portfolio-api` and `trading-worker` use Coinbase paper defaults in Compose via `PORTFOLIO_BROKER_PROVIDER=coinbase` and `TRADING_BROKER_PROVIDER=coinbase`.
-- For direct binary runs, `BROKER_PROVIDER` and `BROKER_ENV` still control the broker selection.
-- With IB Gateway on the host (not in Docker), set `IBKR_GATEWAY_HOST=host.docker.internal` and configure Client Portal / TWS ports per [internal/broker/ibkr/DECISION.md](internal/broker/ibkr/DECISION.md).
+### Crypto alerts and OpenClaw
 
-### Coinbase trading rollout
+- The **signals** service uses persisted **alert settings** (threshold %, cooldown) and the **watchlist**.
+- When Discord is configured, each firing posts a **one-line summary** and a fenced **`json`** block containing **`crypto_signal_v1`**. OpenClaw can consume that message in Discord.
+- **Recent alerts** are stored in Postgres (including the exact JSON payload in **`payload_json`**).
 
-- Use `docker-compose.coinbase.yml` when you want the paper Coinbase worker and portfolio API to boot together with the dashboard.
-- Keep `TRADING_ENABLED=false` in the base stack until the allowlists and max-notional controls are configured.
-- The Coinbase paper execution adapter is enabled in the override with `BROKER_PROVIDER=coinbase` and `BROKER_ENV=paper`.
-- The trading worker and API expose Prometheus-compatible metrics on `GET /metrics`.
-- Operational guidance lives in [docs/runbooks/coinbase-trading.md](docs/runbooks/coinbase-trading.md).
+### Backlog (not default)
 
-### Crypto alerts
+- **IBKR** and **`ib-gateway`** are not part of the MVP compose story.
+- **Order execution** (`/internal/orders`, `/mcp/v1/trades`, `trading-worker`) is implemented in-repo but **disabled** unless **`TRADING_ENABLED=true`**. To experiment, merge the optional override:
 
-- The signals service uses `SIGNAL_MOVE_THRESHOLD_PCT` and `SIGNAL_COOLDOWN` to control alert volume.
-- Followed symbols are persisted in Postgres and seeded from the first crypto snapshot.
-- Alerts are emitted as compact JSON payloads for Discord/OpenClaw consumption.
-- The dashboard exposes a watchlist, alert-controls panel, and recent-alerts panel for the crypto MVP.
+  `docker compose -f docker-compose.yml -f docker-compose.coinbase.yml up -d --build`
+
+  See [docs/runbooks/coinbase-trading.md](docs/runbooks/coinbase-trading.md) and [docs/mcp-crypto-execution-spec.md](docs/mcp-crypto-execution-spec.md).
 
 ### Stylekit (dashboard)
 
-The UI lives in `frontend/` and uses **Tailwind CSS** plus **shadcn/ui**. To add more primitives:
+The UI uses **Tailwind** and **shadcn/ui**. To add primitives:
 
 ```bash
 cd frontend
 npx shadcn@latest add dialog
 ```
 
-Theme tokens and radii are driven by CSS variables in `frontend/app/globals.css` and `frontend/tailwind.config.ts`.
-
 ## Project structure
 
 ```
 backend/         Go backend module
 frontend/        Next.js dashboard
-.agent/epics/    Agent instruction files per epic
+.agent/epics/    Historical agent/epic notes (not the live MVP spec)
+docs/            Runbooks and MVP verification notes
 ```
 
-See [AGENTS.md](AGENTS.md) for the full architecture, shared contracts, and agent workflow.
+See [AGENTS.md](AGENTS.md) for contributor workflow. **Post-deploy verification** and payload notes: [docs/crypto-mvp-refactor.md](docs/crypto-mvp-refactor.md).
 
 ## Linear
 
-[Portfolio platform project](https://linear.app/schtvr/project/portfolio-platform-1e44112535d4) - team `SCH`.
+[Portfolio platform project](https://linear.app/schtvr/project/portfolio-platform-1e44112535d4) — team `SCH`.

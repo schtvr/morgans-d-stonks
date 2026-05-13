@@ -1,6 +1,7 @@
 package portfolio
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/schtvr/morgans-d-stonks/internal/broker"
@@ -103,6 +104,8 @@ type RecentAlert struct {
 	UnrealizedPLPct *float64  `json:"unrealizedPlPct,omitempty"`
 	FiredAt         time.Time `json:"firedAt"`
 	CreatedAt       time.Time `json:"createdAt"`
+	// PayloadJSON is the exact compact JSON body persisted and sent to Discord (crypto_signal_v1).
+	PayloadJSON json.RawMessage `json:"payloadJson,omitempty"`
 }
 
 // RecentAlertsResponse lists the most recent fired alerts.

@@ -48,11 +48,8 @@ services:
       args:
         BIN: ingest
     environment:
-      BROKER_PROVIDER: ${INGEST_BROKER_PROVIDER:-ibkr}
+      BROKER_PROVIDER: ${INGEST_BROKER_PROVIDER:-coinbase}
       BROKER_ENV: ${INGEST_BROKER_ENV:-paper}
-      IBKR_MODE: ${INGEST_IBKR_MODE:-mock}
-      IBKR_GATEWAY_HOST: ${INGEST_IBKR_GATEWAY_HOST:-ib-gateway}
-      IBKR_GATEWAY_PORT: ${INGEST_IBKR_GATEWAY_PORT:-4001}
       COINBASE_READ_API_KEY: ${COINBASE_READ_API_KEY:-}
       COINBASE_READ_API_SECRET: ${COINBASE_READ_API_SECRET:-}
       INGEST_INTERVAL: ${INGEST_INTERVAL:-10m}
@@ -62,7 +59,6 @@ services:
       - portfolio-net
     depends_on:
       - portfolio-api
-      - ib-gateway
     restart: unless-stopped
 
   signals:
@@ -88,35 +84,6 @@ services:
       - portfolio-api
     restart: unless-stopped
 
-  trading-worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      args:
-        BIN: trading-worker
-    environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://portfolio:changeme@db:5432/portfolio?sslmode=disable}
-      BROKER_PROVIDER: ${TRADING_BROKER_PROVIDER:-coinbase}
-      BROKER_ENV: ${TRADING_BROKER_ENV:-paper}
-      COINBASE_READ_API_KEY: ${COINBASE_READ_API_KEY:-}
-      COINBASE_READ_API_SECRET: ${COINBASE_READ_API_SECRET:-}
-      COINBASE_TRADE_API_KEY: ${COINBASE_TRADE_API_KEY:-}
-      COINBASE_TRADE_API_SECRET: ${COINBASE_TRADE_API_SECRET:-}
-      TRADING_ENABLED: ${TRADING_ENABLED:-false}
-      TRADING_KILL_SWITCH: ${TRADING_KILL_SWITCH:-false}
-      TRADING_MAX_NOTIONAL: ${TRADING_MAX_NOTIONAL:-1000}
-      TRADING_RESERVE: ${TRADING_RESERVE:-0}
-      TRADING_ALLOWED_PROVIDERS: ${TRADING_ALLOWED_PROVIDERS:-coinbase}
-      TRADING_ALLOWED_SYMBOLS: ${TRADING_ALLOWED_SYMBOLS:-BTC-USD,ETH-USD}
-      TRADING_DENIED_SYMBOLS: ${TRADING_DENIED_SYMBOLS:-}
-      TRADING_INTERVAL: ${TRADING_INTERVAL:-30s}
-    networks:
-      - portfolio-net
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: unless-stopped
-
   db:
     image: postgres:16-alpine
     environment:
@@ -132,15 +99,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    networks:
-      - portfolio-net
-
-  ib-gateway:
-    image: alpine:3.20
-    command: ["sleep", "infinity"]
-    ports:
-      - "4001:4001"
-      - "4002:4002"
     networks:
       - portfolio-net
 

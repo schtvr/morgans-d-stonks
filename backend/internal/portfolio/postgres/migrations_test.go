@@ -42,3 +42,15 @@ func TestMigrationContainsRecentAlertsTable(t *testing.T) {
 		}
 	}
 }
+
+func TestMigrationContainsRecentAlertPayloadJSON(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("migrations", "005_recent_alert_payload.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"payload_json", "schemaVersion"} {
+		if !strings.Contains(string(b), want) {
+			t.Fatalf("missing %q in migration", want)
+		}
+	}
+}

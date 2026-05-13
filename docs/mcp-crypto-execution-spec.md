@@ -1,5 +1,7 @@
 # MCP Crypto Alerts & Coinbase Execution Spec (MVP)
 
+> **Backlog:** MCP trade HTTP endpoints and live execution are not exposed in the default MVP runtime (`TRADING_ENABLED=false`). OpenClaw is expected to consume **`crypto_signal_v1`** payloads from Discord for the MVP; see [README.md](../README.md).
+
 ## Goal
 
 Enable deterministic crypto alerting to Discord for watchlisted products and allow OpenClaw to initiate Coinbase trades through MCP HTTP calls into `portfolio-api`.

@@ -23,19 +23,28 @@ func TestSignalWebhookContent(t *testing.T) {
 
 func TestCryptoAlertWebhookContent(t *testing.T) {
 	t.Parallel()
+	fixed := time.Unix(0, 0).UTC()
 	payload := signal.CryptoAlert{
-		Type:         "crypto_alert",
-		Symbol:       "BTC-USD",
-		CurrentPrice: 65000,
-		DeltaPct:     1.25,
-		ThresholdPct: 1.0,
-		FiredAt:      time.Unix(0, 0).UTC(),
+		SchemaVersion: signal.CryptoSignalSchemaVersion,
+		ID:            "btc_usd-19700101T000000Z",
+		Type:          "crypto_price_move",
+		Symbol:        "BTC-USD",
+		CurrentPrice:  65000,
+		DeltaPct:      1.25,
+		ThresholdPct:  1.0,
+		FiredAt:       fixed,
 	}
 	got, err := CryptoAlertWebhookContent(payload)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(got, `"type":"crypto_alert"`) || !strings.Contains(got, `"symbol":"BTC-USD"`) {
-		t.Fatalf("unexpected payload: %s", got)
+	if !strings.Contains(got, "crypto_price_move BTC-USD") {
+		t.Fatalf("missing summary line: %s", got)
+	}
+	if !strings.Contains(got, "```json") {
+		t.Fatalf("missing fenced json: %s", got)
+	}
+	if !strings.Contains(got, `"schemaVersion":"crypto_signal_v1"`) || !strings.Contains(got, `"id":"btc_usd-19700101T000000Z"`) {
+		t.Fatalf("unexpected payload in fence: %s", got)
 	}
 }

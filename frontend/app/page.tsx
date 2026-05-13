@@ -1,15 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AccountSummaryBar, type Summary } from "@/components/account-summary";
 import { CryptoAlertControlsCard } from "@/components/crypto-alert-controls-card";
 import { CryptoRecentAlertsCard } from "@/components/crypto-recent-alerts-card";
-import { AccountSummaryBar, type Summary } from "@/components/account-summary";
 import { CryptoWatchlistCard } from "@/components/crypto-watchlist-card";
 import { PositionsTable, type PositionRow } from "@/components/positions-table";
-import { TradeActivityCard } from "@/components/trade-activity-card";
 import { SiteHeader } from "@/components/site-header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api";
+import { useCallback, useEffect, useState } from "react";
 
 export default function HomePage() {
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -72,7 +71,6 @@ export default function HomePage() {
           <CryptoAlertControlsCard />
         </div>
         <CryptoRecentAlertsCard />
-        <TradeActivityCard />
       </main>
     </div>
   );

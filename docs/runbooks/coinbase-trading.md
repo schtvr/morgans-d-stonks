@@ -1,5 +1,7 @@
 # Coinbase Trading Runbook
 
+> **Backlog:** Coinbase order execution and `trading-worker` are not part of the default MVP compose stack. Enable only with `TRADING_ENABLED=true` and optional `docker-compose.coinbase.yml`. The MVP alert path is Discord + `crypto_signal_v1`; see [README.md](../../README.md).
+
 ## Preflight
 
 - Confirm `TRADING_ENABLED=true` only after `TRADING_ALLOWED_PROVIDERS`, `TRADING_ALLOWED_SYMBOLS`, and `TRADING_MAX_NOTIONAL` are set.
@@ -35,4 +37,3 @@
 - Primary: platform maintainer on call.
 - Secondary: whoever owns the current trading rollout.
 - Escalate to the broker integration owner if paper execution behavior diverges from the expected simulation mode.
-

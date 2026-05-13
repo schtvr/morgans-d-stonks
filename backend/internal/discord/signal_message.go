@@ -2,6 +2,7 @@ package discord
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/schtvr/morgans-d-stonks/internal/signal"
@@ -18,11 +19,24 @@ func SignalWebhookContent(mention, symbol, ruleName string) string {
 	return mention + " " + body
 }
 
-// CryptoAlertWebhookContent renders the machine-readable crypto alert payload.
+// CryptoAlertWebhookContent builds a short human summary plus a fenced JSON block for OpenClaw/Discord.
 func CryptoAlertWebhookContent(payload signal.CryptoAlert) (string, error) {
 	b, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
 	}
-	return string(b), nil
+	summary := fmt.Sprintf(
+		"%s %s price=%.8g delta=%.4g%% threshold=%.4g%%",
+		payload.Type,
+		payload.Symbol,
+		payload.CurrentPrice,
+		payload.DeltaPct,
+		payload.ThresholdPct,
+	)
+	var sb strings.Builder
+	sb.WriteString(summary)
+	sb.WriteString("\n```json\n")
+	sb.Write(b)
+	sb.WriteString("\n```")
+	return sb.String(), nil
 }

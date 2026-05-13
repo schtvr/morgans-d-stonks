@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -172,7 +173,7 @@ func (r *Repository) ListRecentAlerts(ctx context.Context, limit int) ([]portfol
 	}
 	const q = `
 SELECT id, type, symbol, product_id, source, current_price, previous_price, delta_amount, delta_pct, threshold_pct,
-       quantity, avg_cost, cost_basis, unrealized_pl, unrealized_pl_pct, fired_at, created_at
+       quantity, avg_cost, cost_basis, unrealized_pl, unrealized_pl_pct, fired_at, created_at, payload_json
 FROM recent_alerts
 ORDER BY fired_at DESC, id DESC
 LIMIT $1`
@@ -203,6 +204,7 @@ LIMIT $1`
 			&item.UnrealizedPLPct,
 			&item.FiredAt,
 			&item.CreatedAt,
+			&item.PayloadJSON,
 		); err != nil {
 			return nil, err
 		}
@@ -216,9 +218,9 @@ func (r *Repository) InsertRecentAlert(ctx context.Context, alert portfolio.Rece
 	const q = `
 INSERT INTO recent_alerts (
     type, symbol, product_id, source, current_price, previous_price, delta_amount, delta_pct, threshold_pct,
-    quantity, avg_cost, cost_basis, unrealized_pl, unrealized_pl_pct, fired_at, created_at
+    quantity, avg_cost, cost_basis, unrealized_pl, unrealized_pl_pct, fired_at, created_at, payload_json
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())`
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now(), $16::jsonb)`
 	_, err := r.pool.Exec(
 		ctx,
 		q,
@@ -237,8 +239,16 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())
 		alert.UnrealizedPL,
 		alert.UnrealizedPLPct,
 		alert.FiredAt,
+		payloadJSONBytes(alert.PayloadJSON),
 	)
 	return err
+}
+
+func payloadJSONBytes(raw json.RawMessage) []byte {
+	if len(raw) == 0 {
+		return []byte(`{}`)
+	}
+	return raw
 }
 
 // CreateSession stores an opaque session token.

@@ -1,3 +1,6 @@
+# Backlog: optional Coinbase paper execution. Merge with base compose only when experimenting with orders.
+# docker compose -f docker-compose.yml -f docker-compose.coinbase.yml up -d --build
+
 services:
   portfolio-api:
     environment:
@@ -13,15 +16,32 @@ services:
       TRADING_SYMBOL_COOLDOWN: 5m
 
   trading-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        BIN: trading-worker
     environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://portfolio:changeme@db:5432/portfolio?sslmode=disable}
       BROKER_PROVIDER: coinbase
       BROKER_ENV: paper
+      COINBASE_READ_API_KEY: ${COINBASE_READ_API_KEY:-}
+      COINBASE_READ_API_SECRET: ${COINBASE_READ_API_SECRET:-}
+      COINBASE_TRADE_API_KEY: ${COINBASE_TRADE_API_KEY:-}
+      COINBASE_TRADE_API_SECRET: ${COINBASE_TRADE_API_SECRET:-}
       TRADING_ENABLED: "true"
       TRADING_KILL_SWITCH: "false"
-      TRADING_ALLOWED_PROVIDERS: coinbase
-      TRADING_ALLOWED_SYMBOLS: BTC-USD,ETH-USD
       TRADING_MAX_NOTIONAL: "1000"
       TRADING_RESERVE: "0"
+      TRADING_ALLOWED_PROVIDERS: coinbase
+      TRADING_ALLOWED_SYMBOLS: BTC-USD,ETH-USD
+      TRADING_DENIED_SYMBOLS: ${TRADING_DENIED_SYMBOLS:-}
       TRADING_GLOBAL_MAX_EXPOSURE: "5000"
       TRADING_SYMBOL_COOLDOWN: 5m
       TRADING_INTERVAL: 30s
+    networks:
+      - portfolio-net
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped

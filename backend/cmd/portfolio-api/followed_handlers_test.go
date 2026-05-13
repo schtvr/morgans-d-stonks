@@ -186,7 +186,9 @@ func TestRecentAlertsHandlers(t *testing.T) {
 	app := &app{repo: repo}
 
 	createReq := httptest.NewRequest(http.MethodPost, "/internal/recent-alerts", bytes.NewBufferString(`{
-		"type":"crypto_alert",
+		"schemaVersion":"crypto_signal_v1",
+		"id":"test-id",
+		"type":"crypto_price_move",
 		"symbol":"BTC-USD",
 		"productId":"BTC-USD",
 		"source":"manual",
@@ -202,6 +204,9 @@ func TestRecentAlertsHandlers(t *testing.T) {
 	}
 	if len(repo.recentAlerts) != 1 || repo.recentAlerts[0].Symbol != "BTC-USD" {
 		t.Fatalf("unexpected insert: %+v", repo.recentAlerts)
+	}
+	if len(repo.recentAlerts[0].PayloadJSON) == 0 || !bytes.Contains(repo.recentAlerts[0].PayloadJSON, []byte(`"schemaVersion":"crypto_signal_v1"`)) {
+		t.Fatalf("expected payload_json: %s", repo.recentAlerts[0].PayloadJSON)
 	}
 
 	listReq := httptest.NewRequest(http.MethodGet, "/api/trading/recent-alerts?limit=10", nil)

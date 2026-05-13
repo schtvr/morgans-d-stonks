@@ -2,6 +2,9 @@ package signal
 
 import "time"
 
+// CryptoSignalSchemaVersion is the MVP crypto-only signal payload schema.
+const CryptoSignalSchemaVersion = "crypto_signal_v1"
+
 // SignalEvent is emitted when a rule fires (stable JSON for P1 consumers).
 type SignalEvent struct {
 	ID        string    `json:"id"`
@@ -16,6 +19,8 @@ type SignalEvent struct {
 
 // CryptoAlert is the compact machine-readable payload sent to Discord/OpenClaw.
 type CryptoAlert struct {
+	SchemaVersion   string    `json:"schemaVersion"`
+	ID              string    `json:"id"`
 	Type            string    `json:"type"`
 	ReasonFlags     []string  `json:"reasonFlags,omitempty"`
 	Symbol          string    `json:"symbol"`
