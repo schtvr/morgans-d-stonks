@@ -3,6 +3,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        PORTFOLIO_API_INTERNAL_URL: ${PORTFOLIO_API_INTERNAL_URL:-http://portfolio-api:8080}
     ports:
       - "3000:3000"
     environment:
