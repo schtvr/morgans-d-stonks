@@ -21,6 +21,20 @@ type Repository interface {
 	UpdateSignalSettings(ctx context.Context, req SignalSettingsRequest) error
 	ListRecentAlerts(ctx context.Context, limit int) ([]RecentAlert, error)
 	InsertRecentAlert(ctx context.Context, alert RecentAlert) error
+	InsertLabSignalEvent(ctx context.Context, alert RecentAlert) (*LabSignalEvent, error)
+	ListLabSignalEvents(ctx context.Context, filter LabSignalFilter) ([]LabSignalEvent, error)
+	GetLabSignalEvent(ctx context.Context, id int64) (*LabSignalEvent, error)
+	UpsertLabOpenClawRun(ctx context.Context, run LabOpenClawRun) error
+	ListLabOpenClawRuns(ctx context.Context, filter LabRunFilter) ([]LabOpenClawRun, error)
+	GetLabOpenClawRun(ctx context.Context, requestID string) (*LabOpenClawRun, error)
+	InsertLabNote(ctx context.Context, note LabNoteRequest) (*LabNote, error)
+	ListLabTelemetry(ctx context.Context, symbol, window string) ([]LabTelemetryPoint, error)
+	GetLabControlState(ctx context.Context) (*LabControlState, error)
+	UpdateLabControlState(ctx context.Context, control LabControlState) (*LabControlState, error)
+	InsertSignalSettingsVersion(ctx context.Context, req SignalSettingsRequest, reason string) (*SignalSettingsVersion, error)
+	ListSignalSettingsVersions(ctx context.Context, limit int) ([]SignalSettingsVersion, error)
+	RevertSignalSettings(ctx context.Context, versionID int64) (*SignalSettings, error)
+	CompactLabOpenClawPayloads(ctx context.Context, olderThan time.Time) error
 
 	CreateSession(ctx context.Context, token, username string, expiresAt time.Time) error
 	SessionUser(ctx context.Context, token string) (username string, err error)

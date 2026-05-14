@@ -17,16 +17,23 @@ import (
 )
 
 type fakePortfolioRepo struct {
-	followed      map[string]portfolio.FollowedSymbol
-	seeded        bool
-	snapshot      []byte
-	signalSetting *portfolio.SignalSettings
-	recentAlerts  []portfolio.RecentAlert
+	followed         map[string]portfolio.FollowedSymbol
+	seeded           bool
+	snapshot         []byte
+	signalSetting    *portfolio.SignalSettings
+	recentAlerts     []portfolio.RecentAlert
+	labSignals       []portfolio.LabSignalEvent
+	labRuns          map[string]portfolio.LabOpenClawRun
+	labNotes         []portfolio.LabNote
+	control          portfolio.LabControlState
+	settingsVersions []portfolio.SignalSettingsVersion
 }
 
 func newFakePortfolioRepo() *fakePortfolioRepo {
 	return &fakePortfolioRepo{
 		followed: map[string]portfolio.FollowedSymbol{},
+		labRuns:  map[string]portfolio.LabOpenClawRun{},
+		control:  portfolio.LabControlState{UpdatedAt: time.Unix(0, 0).UTC()},
 		signalSetting: &portfolio.SignalSettings{
 			MoveThresholdPct: 1.0,
 			Cooldown:         "15m",
@@ -85,6 +92,99 @@ func (f *fakePortfolioRepo) InsertRecentAlert(_ context.Context, alert portfolio
 	alert.ID = int64(len(f.recentAlerts) + 1)
 	alert.CreatedAt = time.Now().UTC()
 	f.recentAlerts = append(f.recentAlerts, alert)
+	return nil
+}
+func (f *fakePortfolioRepo) InsertLabSignalEvent(_ context.Context, alert portfolio.RecentAlert) (*portfolio.LabSignalEvent, error) {
+	item := portfolio.LabSignalEvent{
+		ID:            int64(len(f.labSignals) + 1),
+		Type:          alert.Type,
+		Symbol:        alert.Symbol,
+		ProductID:     alert.ProductID,
+		Source:        alert.Source,
+		CurrentPrice:  alert.CurrentPrice,
+		PreviousPrice: alert.PreviousPrice,
+		DeltaAmount:   alert.DeltaAmount,
+		DeltaPct:      alert.DeltaPct,
+		ThresholdPct:  alert.ThresholdPct,
+		FiredAt:       alert.FiredAt,
+		PayloadJSON:   alert.PayloadJSON,
+		DiscordStatus: "signal_only",
+		CreatedAt:     time.Now().UTC(),
+	}
+	f.labSignals = append(f.labSignals, item)
+	return &item, nil
+}
+func (f *fakePortfolioRepo) ListLabSignalEvents(_ context.Context, filter portfolio.LabSignalFilter) ([]portfolio.LabSignalEvent, error) {
+	out := make([]portfolio.LabSignalEvent, len(f.labSignals))
+	copy(out, f.labSignals)
+	return out, nil
+}
+func (f *fakePortfolioRepo) GetLabSignalEvent(_ context.Context, id int64) (*portfolio.LabSignalEvent, error) {
+	for _, item := range f.labSignals {
+		if item.ID == id {
+			return &item, nil
+		}
+	}
+	return nil, pgx.ErrNoRows
+}
+func (f *fakePortfolioRepo) UpsertLabOpenClawRun(_ context.Context, run portfolio.LabOpenClawRun) error {
+	if run.Attempts == 0 {
+		run.Attempts = 1
+	}
+	run.UpdatedAt = time.Now().UTC()
+	f.labRuns[run.RequestID] = run
+	return nil
+}
+func (f *fakePortfolioRepo) ListLabOpenClawRuns(_ context.Context, filter portfolio.LabRunFilter) ([]portfolio.LabOpenClawRun, error) {
+	out := make([]portfolio.LabOpenClawRun, 0, len(f.labRuns))
+	for _, run := range f.labRuns {
+		out = append(out, run)
+	}
+	return out, nil
+}
+func (f *fakePortfolioRepo) GetLabOpenClawRun(_ context.Context, requestID string) (*portfolio.LabOpenClawRun, error) {
+	run, ok := f.labRuns[requestID]
+	if !ok {
+		return nil, pgx.ErrNoRows
+	}
+	return &run, nil
+}
+func (f *fakePortfolioRepo) InsertLabNote(_ context.Context, req portfolio.LabNoteRequest) (*portfolio.LabNote, error) {
+	note := portfolio.LabNote{ID: int64(len(f.labNotes) + 1), SignalID: req.SignalID, RequestID: req.RequestID, Body: req.Body, CreatedAt: time.Now().UTC()}
+	f.labNotes = append(f.labNotes, note)
+	return &note, nil
+}
+func (f *fakePortfolioRepo) ListLabTelemetry(context.Context, string, string) ([]portfolio.LabTelemetryPoint, error) {
+	return nil, nil
+}
+func (f *fakePortfolioRepo) GetLabControlState(context.Context) (*portfolio.LabControlState, error) {
+	return &f.control, nil
+}
+func (f *fakePortfolioRepo) UpdateLabControlState(_ context.Context, control portfolio.LabControlState) (*portfolio.LabControlState, error) {
+	control.UpdatedAt = time.Now().UTC()
+	f.control = control
+	return &f.control, nil
+}
+func (f *fakePortfolioRepo) InsertSignalSettingsVersion(_ context.Context, req portfolio.SignalSettingsRequest, reason string) (*portfolio.SignalSettingsVersion, error) {
+	version := portfolio.SignalSettingsVersion{ID: int64(len(f.settingsVersions) + 1), MoveThresholdPct: req.MoveThresholdPct, Cooldown: req.Cooldown, Reason: reason, CreatedAt: time.Now().UTC()}
+	f.settingsVersions = append(f.settingsVersions, version)
+	return &version, nil
+}
+func (f *fakePortfolioRepo) ListSignalSettingsVersions(context.Context, int) ([]portfolio.SignalSettingsVersion, error) {
+	out := make([]portfolio.SignalSettingsVersion, len(f.settingsVersions))
+	copy(out, f.settingsVersions)
+	return out, nil
+}
+func (f *fakePortfolioRepo) RevertSignalSettings(_ context.Context, versionID int64) (*portfolio.SignalSettings, error) {
+	for _, version := range f.settingsVersions {
+		if version.ID == versionID {
+			f.signalSetting = &portfolio.SignalSettings{MoveThresholdPct: version.MoveThresholdPct, Cooldown: version.Cooldown, UpdatedAt: time.Now().UTC()}
+			return f.signalSetting, nil
+		}
+	}
+	return nil, pgx.ErrNoRows
+}
+func (f *fakePortfolioRepo) CompactLabOpenClawPayloads(context.Context, time.Time) error {
 	return nil
 }
 func (f *fakePortfolioRepo) CreateSession(context.Context, string, string, time.Time) error {
@@ -205,6 +305,12 @@ func TestRecentAlertsHandlers(t *testing.T) {
 	if len(repo.recentAlerts) != 1 || repo.recentAlerts[0].Symbol != "BTC-USD" {
 		t.Fatalf("unexpected insert: %+v", repo.recentAlerts)
 	}
+	if len(repo.labSignals) != 1 || repo.labSignals[0].Symbol != "BTC-USD" {
+		t.Fatalf("expected lab signal insert: %+v", repo.labSignals)
+	}
+	if _, ok := repo.labRuns["lab-signal-1-attempt-1"]; !ok {
+		t.Fatalf("expected queued lab run: %+v", repo.labRuns)
+	}
 	if len(repo.recentAlerts[0].PayloadJSON) == 0 || !bytes.Contains(repo.recentAlerts[0].PayloadJSON, []byte(`"schemaVersion":"crypto_signal_v1"`)) {
 		t.Fatalf("expected payload_json: %s", repo.recentAlerts[0].PayloadJSON)
 	}
@@ -221,5 +327,30 @@ func TestRecentAlertsHandlers(t *testing.T) {
 	}
 	if len(resp.Alerts) != 1 || resp.Alerts[0].Symbol != "BTC-USD" {
 		t.Fatalf("unexpected alerts: %+v", resp.Alerts)
+	}
+}
+
+func TestLabOperationHandlers(t *testing.T) {
+	repo := newFakePortfolioRepo()
+	app := &app{repo: repo}
+
+	pauseReq := httptest.NewRequest(http.MethodPost, "/api/lab/openclaw/pause", nil)
+	pauseRec := httptest.NewRecorder()
+	app.handleLabOpenClawPause(pauseRec, pauseReq)
+	if pauseRec.Code != http.StatusOK {
+		t.Fatalf("pause status: %d", pauseRec.Code)
+	}
+	if !repo.control.OpenClawPaused {
+		t.Fatal("expected OpenClaw paused")
+	}
+
+	resumeReq := httptest.NewRequest(http.MethodPost, "/api/lab/openclaw/resume", nil)
+	resumeRec := httptest.NewRecorder()
+	app.handleLabOpenClawResume(resumeRec, resumeReq)
+	if resumeRec.Code != http.StatusOK {
+		t.Fatalf("resume status: %d", resumeRec.Code)
+	}
+	if repo.control.OpenClawPaused {
+		t.Fatal("expected OpenClaw resumed")
 	}
 }

@@ -86,6 +86,7 @@ func (a *app) handleInternalRecentAlertCreate(w http.ResponseWriter, r *http.Req
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	a.recordLabSignal(r, alert)
 	if a.log != nil {
 		a.log.Info("recent_alert_insert", "symbol", alert.Symbol, "delta_pct", alert.DeltaPct, "threshold_pct", alert.ThresholdPct)
 	}

@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { apiFetch, clearCrossOriginBearerToken } from "@/lib/api";
+import { clearSessionMarker } from "@/lib/auth";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { Button } from "@/components/ui/button";
-import { clearSessionMarker } from "@/lib/auth";
-import { apiFetch, clearCrossOriginBearerToken } from "@/lib/api";
+import Link from "next/link";
 
 export function SiteHeader() {
   const { theme, setTheme } = useTheme();
@@ -24,9 +24,19 @@ export function SiteHeader() {
   return (
     <header className="border-b bg-card">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-        <Link href="/" className="text-lg font-semibold tracking-tight">
-          Morgans D. Stonks
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link href="/" className="text-lg font-semibold tracking-tight">
+            Morgans D. Stonks
+          </Link>
+          <nav className="flex items-center gap-1 text-sm">
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/">Portfolio</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/lab">The Lab</Link>
+            </Button>
+          </nav>
+        </div>
         <div className="flex items-center gap-2">
           <Button
             type="button"

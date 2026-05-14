@@ -4,4 +4,5 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    command: npm run dev
+    # Keep the container-only node_modules volume in sync when package-lock changes.
+    command: sh -c "npm install && npm run dev"
