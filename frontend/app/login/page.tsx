@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiBaseUrl, isCrossOriginPublicAPI, setCrossOriginBearerToken } from "@/lib/api";
 import { markSessionPresent } from "@/lib/auth";
+import { useState } from "react";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("admin");
@@ -30,7 +30,13 @@ export default function LoginPage() {
         body: JSON.stringify({ username, password }),
       });
       if (!res.ok) {
-        setError("Invalid username or password");
+        if (res.status === 401 || res.status === 403) {
+          setError("Invalid username or password");
+        } else if (res.status >= 500) {
+          setError("Portfolio API unavailable (server error). Check that portfolio-api is running and DATABASE_URL matches Postgres.");
+        } else {
+          setError(`Sign-in failed (${res.status}). Try again or check API logs.`);
+        }
         setLoading(false);
         return;
       }

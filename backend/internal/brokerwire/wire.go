@@ -27,7 +27,7 @@ func New(cfg broker.Config) (broker.Broker, error) {
 			return nil, fmt.Errorf("brokerwire: unknown IBKR_MODE %q", cfg.Mode)
 		}
 	case "coinbase":
-		return coinbase.NewReadOnly(nil, ""), nil
+		return coinbase.NewReadOnly(nil, "", cfg.CoinbaseAPIKey, cfg.CoinbaseAPISecret), nil
 	default:
 		return nil, fmt.Errorf("brokerwire: unknown BROKER_PROVIDER %q", cfg.Provider)
 	}

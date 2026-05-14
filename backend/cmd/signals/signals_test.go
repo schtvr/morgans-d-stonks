@@ -83,7 +83,7 @@ func TestRunOnce_cryptoAlertThreshold(t *testing.T) {
 	}
 	var buf bytes.Buffer
 	log := slog.New(slog.NewJSONHandler(&buf, nil))
-	client := coinbase.NewReadOnly(srv.Client(), srv.URL)
+	client := coinbase.NewReadOnly(srv.Client(), srv.URL, "", "")
 
 	err = runOnce(context.Background(), log, srv.Client(), client, state, srv.URL, "k", 1.0, time.Minute, discord.NewClient(""), false)
 	if err != nil {

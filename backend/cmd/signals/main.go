@@ -27,6 +27,7 @@ import (
 func main() {
 	log := logging.New("signals")
 	cfg := config.LoadSignals()
+	brokerCfg := config.LoadBroker()
 
 	state, err := sigpkg.NewAlertState(cfg.StatePath)
 	if err != nil {
@@ -34,7 +35,8 @@ func main() {
 		os.Exit(1)
 	}
 	dc := discord.NewClient(cfg.DiscordWebhookURL)
-	coinbaseClient := coinbase.NewReadOnly(nil, "")
+	cb := brokerCfg.ToLegacyBrokerConfig()
+	coinbaseClient := coinbase.NewReadOnly(nil, "", cb.CoinbaseAPIKey, cb.CoinbaseAPISecret)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -72,6 +72,8 @@ services:
       SIGNAL_COOLDOWN: ${SIGNAL_COOLDOWN:-15m}
       SIGNAL_INTERVAL: ${SIGNAL_INTERVAL:-5m}
       SIGNAL_STATE_PATH: ${SIGNAL_STATE_PATH:-/app/data/signal-state.json}
+      COINBASE_READ_API_KEY: ${COINBASE_READ_API_KEY:-}
+      COINBASE_READ_API_SECRET: ${COINBASE_READ_API_SECRET:-}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       DISCORD_SIGNAL_BOT_MENTION: ${DISCORD_SIGNAL_BOT_MENTION:-}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-changeme}
@@ -90,8 +92,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-portfolio}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       POSTGRES_DB: ${POSTGRES_DB:-portfolio}
-    ports:
-      - "5432:5432"
+    # No host port: Postgres is only reachable as db:5432 on portfolio-net (avoids binding host :5432).
+    # For host tools: add e.g. "127.0.0.1:5433:5432" or run: docker compose exec db psql -U portfolio portfolio
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

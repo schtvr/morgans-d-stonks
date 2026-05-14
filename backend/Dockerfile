@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 ARG BIN=portfolio-api
 
 FROM golang:1.25.7-alpine AS build

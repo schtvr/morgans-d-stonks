@@ -65,6 +65,8 @@ func (c Broker) ToLegacyBrokerConfig() broker.Config {
 		GatewayHost: c.IBKRGatewayHost,
 		GatewayPort: c.IBKRGatewayPort,
 		PortalPort:  c.IBKRPortalPort,
+		CoinbaseAPIKey:    strings.TrimSpace(c.CoinbaseReadAPIKey),
+		CoinbaseAPISecret: strings.TrimSpace(c.CoinbaseReadAPISecret),
 	}
 }
 

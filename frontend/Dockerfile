@@ -17,6 +17,8 @@ ENV PORT=3000
 RUN npm run build
 
 ENV NODE_ENV=production
+# Dev compose bind-mounts ./frontend over /app but keeps /app/node_modules from this image.
+# Keep Tailwind/PostCSS packages in package.json "dependencies" so they survive this prune.
 RUN npm prune --omit=dev
 
 ENV HOSTNAME=0.0.0.0

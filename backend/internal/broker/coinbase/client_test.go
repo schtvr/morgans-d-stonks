@@ -31,7 +31,7 @@ func TestQuotesRetryAndCache(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	c := NewReadOnly(ts.Client(), ts.URL)
+	c := NewReadOnly(ts.Client(), ts.URL, "", "")
 	ctx := context.Background()
 	quotes, err := c.Quotes(ctx, []string{"BTC"})
 	if err != nil {
@@ -55,9 +55,12 @@ func TestQuotesRetryAndCache(t *testing.T) {
 func TestPositionsAndAccountSummaryComputeMarketValue(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/v2/accounts":
+		case "/api/v3/brokerage/accounts":
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"accounts":[{"currency":"BTC","available_balance":"2"},{"currency":"USD","available_balance":"10"}]}`))
+			_, _ = w.Write([]byte(`{"accounts":[
+				{"currency":"BTC","available_balance":{"value":"2","currency":"BTC"}},
+				{"currency":"USD","available_balance":{"value":"10","currency":"USD"}}
+			],"has_next":false}`))
 		case "/api/v3/brokerage/market/products":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"products":[{"product_id":"BTC-USD","base_increment":"0.00000001","quote_increment":"0.01","trading_disabled":false},{"product_id":"USD-USD","base_increment":"0.01","quote_increment":"0.01","trading_disabled":false}]}`))
@@ -73,7 +76,7 @@ func TestPositionsAndAccountSummaryComputeMarketValue(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	c := NewReadOnly(ts.Client(), ts.URL)
+	c := NewReadOnly(ts.Client(), ts.URL, "", "")
 	ctx := context.Background()
 
 	positions, err := c.Positions(ctx)

@@ -14,6 +14,10 @@ type Config struct {
 	GatewayPort int
 	// PortalPort is the HTTPS Client Portal port (typically 5000). 0 means unset.
 	PortalPort int
+	// CoinbaseAPIKey and CoinbaseAPISecret are CDP API credentials (JWT per request).
+	// Secret is base64 Ed25519 (64 raw bytes) or PEM ECDSA, per Coinbase CDP SDK.
+	CoinbaseAPIKey    string
+	CoinbaseAPISecret string
 }
 
 // LoadConfigFromEnv reads IBKR_* environment variables.
