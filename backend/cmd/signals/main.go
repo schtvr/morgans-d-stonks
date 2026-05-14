@@ -115,6 +115,7 @@ func runOnce(
 	sent := 0
 	discordErrors := 0
 	skipped := 0
+	var discordPayloads []string
 
 	defer func() {
 		log.Info("signals_tick",
@@ -185,12 +186,18 @@ func runOnce(
 			sent++
 			continue
 		}
-		if err := dc.SendMessage(ctx, payload); err != nil {
-			discordErrors++
-			log.Warn("discord", "err", err)
-			continue
+		discordPayloads = append(discordPayloads, payload)
+	}
+	if discordEnabled && len(discordPayloads) > 0 {
+		const batchSep = "\n---\n"
+		for _, chunk := range discord.WebhookChunks(discordPayloads, batchSep, discord.WebhookContentMaxRunes) {
+			if err := dc.SendMessage(ctx, chunk.Content); err != nil {
+				discordErrors++
+				log.Warn("discord", "err", err)
+				continue
+			}
+			sent += chunk.AlertsApplied
 		}
-		sent++
 	}
 	return nil
 }
