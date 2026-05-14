@@ -80,6 +80,10 @@ func (a *app) handleAlertSettingsUpdate(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if _, err := a.repo.InsertSignalSettingsVersion(r.Context(), req, "save"); err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
 	if err := a.repo.UpdateSignalSettings(r.Context(), req); err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return

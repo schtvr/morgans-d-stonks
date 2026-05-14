@@ -54,3 +54,21 @@ func TestMigrationContainsRecentAlertPayloadJSON(t *testing.T) {
 		}
 	}
 }
+
+func TestMigrationContainsLabTables(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("migrations", "006_lab.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"CREATE TABLE IF NOT EXISTS lab_signal_events",
+		"CREATE TABLE IF NOT EXISTS lab_openclaw_runs",
+		"CREATE TABLE IF NOT EXISTS lab_notes",
+		"CREATE TABLE IF NOT EXISTS signal_settings_versions",
+		"CREATE TABLE IF NOT EXISTS lab_control_state",
+	} {
+		if !strings.Contains(string(b), want) {
+			t.Fatalf("missing %q in migration", want)
+		}
+	}
+}

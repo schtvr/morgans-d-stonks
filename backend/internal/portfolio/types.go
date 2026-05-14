@@ -113,6 +113,127 @@ type RecentAlertsResponse struct {
 	Alerts []RecentAlert `json:"alerts"`
 }
 
+// LabSignalEvent is the durable event record backing The Lab timeline.
+type LabSignalEvent struct {
+	ID            int64           `json:"id"`
+	Type          string          `json:"type"`
+	Symbol        string          `json:"symbol"`
+	ProductID     string          `json:"productId,omitempty"`
+	Source        string          `json:"source,omitempty"`
+	CurrentPrice  float64         `json:"currentPrice"`
+	PreviousPrice *float64        `json:"previousPrice,omitempty"`
+	DeltaAmount   *float64        `json:"deltaAmount,omitempty"`
+	DeltaPct      float64         `json:"deltaPct"`
+	ThresholdPct  float64         `json:"thresholdPct"`
+	FiredAt       time.Time       `json:"firedAt"`
+	PayloadJSON   json.RawMessage `json:"payloadJson,omitempty"`
+	DiscordStatus string          `json:"discordStatus"`
+	CreatedAt     time.Time       `json:"createdAt"`
+	Run           *LabOpenClawRun `json:"run,omitempty"`
+}
+
+type LabSignalFilter struct {
+	Limit  int
+	Symbol string
+	From   *time.Time
+	To     *time.Time
+}
+
+type LabSignalsResponse struct {
+	Signals []LabSignalEvent `json:"signals"`
+}
+
+type LabOpenClawRun struct {
+	RequestID      string          `json:"requestId"`
+	SignalID       int64           `json:"signalId"`
+	Status         string          `json:"status"`
+	Attempts       int             `json:"attempts"`
+	Analysis       string          `json:"analysis,omitempty"`
+	Recommendation string          `json:"recommendation,omitempty"`
+	Confidence     *float64        `json:"confidence,omitempty"`
+	ToolNames      []string        `json:"toolNames"`
+	ErrorText      string          `json:"errorText,omitempty"`
+	RequestHash    string          `json:"requestHash,omitempty"`
+	ResponseHash   string          `json:"responseHash,omitempty"`
+	RequestJSON    json.RawMessage `json:"requestJson,omitempty"`
+	ResponseJSON   json.RawMessage `json:"responseJson,omitempty"`
+	StartedAt      *time.Time      `json:"startedAt,omitempty"`
+	CompletedAt    *time.Time      `json:"completedAt,omitempty"`
+	CreatedAt      time.Time       `json:"createdAt"`
+	UpdatedAt      time.Time       `json:"updatedAt"`
+}
+
+type LabRunFilter struct {
+	Limit    int
+	Status   string
+	SignalID int64
+}
+
+type LabRunsResponse struct {
+	Runs []LabOpenClawRun `json:"runs"`
+}
+
+type LabControlState struct {
+	OpenClawPaused bool      `json:"openclawPaused"`
+	CircuitOpen    bool      `json:"circuitOpen"`
+	CircuitReason  string    `json:"circuitReason,omitempty"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
+type LabOverviewResponse struct {
+	Control       LabControlState  `json:"control"`
+	RecentSignals []LabSignalEvent `json:"recentSignals"`
+	RecentRuns    []LabOpenClawRun `json:"recentRuns"`
+}
+
+type LabOperationResponse struct {
+	Control LabControlState `json:"control"`
+	Message string          `json:"message"`
+}
+
+type LabNote struct {
+	ID        int64     `json:"id"`
+	SignalID  *int64    `json:"signalId,omitempty"`
+	RequestID string    `json:"requestId,omitempty"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+type LabNoteRequest struct {
+	SignalID  *int64 `json:"signalId,omitempty"`
+	RequestID string `json:"requestId,omitempty"`
+	Body      string `json:"body"`
+}
+
+type LabTelemetryPoint struct {
+	Bucket       time.Time `json:"bucket"`
+	Symbol       string    `json:"symbol"`
+	CurrentPrice float64   `json:"currentPrice"`
+	DeltaPct     float64   `json:"deltaPct"`
+	ThresholdPct float64   `json:"thresholdPct"`
+	SignalCount  int       `json:"signalCount"`
+}
+
+type LabTelemetryResponse struct {
+	Points []LabTelemetryPoint `json:"points"`
+}
+
+type SignalSettingsVersion struct {
+	ID               int64     `json:"id"`
+	MoveThresholdPct float64   `json:"moveThresholdPct"`
+	Cooldown         string    `json:"cooldown"`
+	Reason           string    `json:"reason,omitempty"`
+	CreatedAt        time.Time `json:"createdAt"`
+}
+
+type SignalSettingsHistoryResponse struct {
+	Versions []SignalSettingsVersion `json:"versions"`
+}
+
+type SignalSettingsRevertRequest struct {
+	VersionID int64 `json:"versionId"`
+}
+
 // MapIngestToViews converts ingest snapshot positions into API views.
 func MapIngestToViews(req *IngestSnapshotRequest) PositionsResponse {
 	views := make([]PositionView, 0, len(req.Positions))

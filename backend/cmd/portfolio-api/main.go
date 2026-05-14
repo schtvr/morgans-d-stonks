@@ -70,6 +70,9 @@ func main() {
 	if err := seedFollowedSymbolsFromLatestSnapshot(ctx, repo); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		log.Warn("seed followed symbols", "err", err)
 	}
+	if err := repo.CompactLabOpenClawPayloads(ctx, time.Now().UTC().Add(-labPayloadRetention)); err != nil {
+		log.Warn("compact lab payloads", "err", err)
+	}
 
 	app := &app{
 		cfg:        cfg,
@@ -119,6 +122,21 @@ func main() {
 		r.Get("/api/trading/alert-settings", app.handleAlertSettingsGet)
 		r.Put("/api/trading/alert-settings", app.handleAlertSettingsUpdate)
 		r.Get("/api/trading/recent-alerts", app.handleRecentAlertsList)
+		r.Route("/api/lab", func(r chi.Router) {
+			r.Get("/overview", app.handleLabOverview)
+			r.Get("/signals", app.handleLabSignalsList)
+			r.Get("/signals/{id}", app.handleLabSignalGet)
+			r.Get("/runs", app.handleLabRunsList)
+			r.Get("/runs/{requestId}", app.handleLabRunGet)
+			r.Post("/runs/{requestId}/retry", app.handleLabRunRetry)
+			r.Post("/openclaw/pause", app.handleLabOpenClawPause)
+			r.Post("/openclaw/resume", app.handleLabOpenClawResume)
+			r.Post("/openclaw/circuit/reset", app.handleLabOpenClawCircuitReset)
+			r.Post("/notes", app.handleLabNoteCreate)
+			r.Get("/telemetry", app.handleLabTelemetry)
+			r.Get("/signal-settings/history", app.handleSignalSettingsHistory)
+			r.Post("/signal-settings/revert", app.handleSignalSettingsRevert)
+		})
 		if app.tradingCfg.Enabled {
 			r.Get("/api/trading/orders/open", app.handleOpenOrdersList)
 		}
