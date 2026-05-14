@@ -1,5 +1,6 @@
 "use client";
 
+import { CollapsibleSection } from "@/components/collapsible-section";
 import { LabStatusCard } from "@/components/lab/lab-status-card";
 import { RunDetailPanel } from "@/components/lab/run-detail-panel";
 import { SignalRunTable } from "@/components/lab/signal-run-table";
@@ -141,39 +142,49 @@ export default function LabPage() {
 
         {error ? <p className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</p> : null}
 
-        <div className="grid gap-4 md:grid-cols-3">
-          {stats.map((stat) => (
-            <Card key={stat.label}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{stat.label}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-semibold">{loading ? "..." : stat.value}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{stat.hint}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <CollapsibleSection storageKey="lab-dashboard-collapse" sectionId="stats" title="Lab stats" description="At-a-glance signal and run counts.">
+          <div className="grid gap-4 md:grid-cols-3">
+            {stats.map((stat) => (
+              <Card key={stat.label}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{stat.label}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-semibold">{loading ? "..." : stat.value}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{stat.hint}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </CollapsibleSection>
 
-        <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
-          <LabStatusCard
-            control={control}
-            busy={busy}
-            onPause={() => void operate("pause")}
-            onResume={() => void operate("resume")}
-            onResetCircuit={() => void operate("reset")}
-          />
-          <SignalSettingsLabCard onChanged={() => void load(true)} />
-        </div>
+        <CollapsibleSection storageKey="lab-dashboard-collapse" sectionId="operations" title="Operations and filters">
+          <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+            <LabStatusCard
+              control={control}
+              busy={busy}
+              onPause={() => void operate("pause")}
+              onResume={() => void operate("resume")}
+              onResetCircuit={() => void operate("reset")}
+            />
+            <SignalSettingsLabCard onChanged={() => void load(true)} />
+          </div>
+        </CollapsibleSection>
 
-        <SignalTelemetryChart points={telemetry} />
+        <CollapsibleSection storageKey="lab-dashboard-collapse" sectionId="telemetry" title="Signal telemetry">
+          <SignalTelemetryChart points={telemetry} />
+        </CollapsibleSection>
 
-        <div className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-          <SignalRunTable signals={signals} runs={runs} onSelectRun={setSelectedRun} />
-          <RunDetailPanel run={selectedRun} busy={busy} onRetry={(run) => void retry(run)} onNote={(run, body) => void saveNote(run, body)} />
-        </div>
+        <CollapsibleSection storageKey="lab-dashboard-collapse" sectionId="signals-runs" title="Signals and run detail">
+          <div className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
+            <SignalRunTable signals={signals} runs={runs} onSelectRun={setSelectedRun} />
+            <RunDetailPanel run={selectedRun} busy={busy} onRetry={(run) => void retry(run)} onNote={(run, body) => void saveNote(run, body)} />
+          </div>
+        </CollapsibleSection>
 
-        <SignalTimeline signals={signals} runs={runs} />
+        <CollapsibleSection storageKey="lab-dashboard-collapse" sectionId="timeline" title="Timeline">
+          <SignalTimeline signals={signals} runs={runs} />
+        </CollapsibleSection>
       </main>
     </div>
   );

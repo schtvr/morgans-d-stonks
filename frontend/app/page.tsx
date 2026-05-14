@@ -1,12 +1,12 @@
 "use client";
 
 import { AccountSummaryBar, type Summary } from "@/components/account-summary";
+import { CollapsibleSection } from "@/components/collapsible-section";
 import { CryptoAlertControlsCard } from "@/components/crypto-alert-controls-card";
 import { CryptoRecentAlertsCard } from "@/components/crypto-recent-alerts-card";
 import { CryptoWatchlistCard } from "@/components/crypto-watchlist-card";
 import { PositionsTable, type PositionRow } from "@/components/positions-table";
 import { SiteHeader } from "@/components/site-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api";
 import { useCallback, useEffect, useState } from "react";
 
@@ -57,20 +57,36 @@ export default function HomePage() {
           <h1 className="text-2xl font-semibold tracking-tight">Portfolio</h1>
           <p className="text-sm text-muted-foreground">Positions refresh every 45s while this tab is visible.</p>
         </div>
-        <AccountSummaryBar summary={summary} loading={loading} />
-        <Card>
-          <CardHeader>
-            <CardTitle>Positions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <PositionsTable positions={positions} loading={loading} error={error} onRetry={() => void load()} />
-          </CardContent>
-        </Card>
-        <div className="grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
-          <CryptoWatchlistCard />
-          <CryptoAlertControlsCard />
-        </div>
-        <CryptoRecentAlertsCard />
+        <CollapsibleSection
+          storageKey="portfolio-dashboard-collapse"
+          sectionId="summary"
+          title="Account summary"
+          description="Net liquidation, cash, and buying power."
+        >
+          <AccountSummaryBar summary={summary} loading={loading} />
+        </CollapsibleSection>
+        <CollapsibleSection storageKey="portfolio-dashboard-collapse" sectionId="positions" title="Positions">
+          <PositionsTable positions={positions} loading={loading} error={error} onRetry={() => void load()} />
+        </CollapsibleSection>
+        <CollapsibleSection
+          storageKey="portfolio-dashboard-collapse"
+          sectionId="crypto-controls"
+          title="Crypto controls"
+          description="Watchlist and signal filter controls."
+        >
+          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
+            <CryptoWatchlistCard />
+            <CryptoAlertControlsCard />
+          </div>
+        </CollapsibleSection>
+        <CollapsibleSection
+          storageKey="portfolio-dashboard-collapse"
+          sectionId="recent-alerts"
+          title="Recent alerts"
+          description="Latest Coinbase moves that cleared your threshold."
+        >
+          <CryptoRecentAlertsCard />
+        </CollapsibleSection>
       </main>
     </div>
   );
