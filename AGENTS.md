@@ -4,7 +4,6 @@
 
 **Portfolio Platform** — US equities portfolio tracker built with Go services and a Next.js dashboard, connected to Interactive Brokers, deployed via Docker Compose on a homelab.
 
-- **Linear project**: [Portfolio platform](https://linear.app/schtvr/project/portfolio-platform-1e44112535d4)
 - **Stack**: Go (services), Next.js + Tailwind + shadcn/ui (dashboard), Postgres, Docker Compose
 - **Broker**: Interactive Brokers (IBKR) — paper mode default, live via config flag
 
@@ -79,8 +78,8 @@ For structured logging work, read `.agent/skills/logging.md` alongside `.agent/e
 
 ### Git workflow
 
-- Branch name format: `cursor/<issue-id>-<short-description>-<4-char-suffix>` (e.g. `cursor/SCH-19-foundation-a4ba`).
-- One logical change per commit; reference the Linear issue ID in the message (e.g. `SCH-19: scaffold repo layout`).
+- Branch name format: `cursor/<issue-id>-<short-description>-<4-char-suffix>` (e.g. `cursor/42-foundation-a4ba`).
+- One logical change per commit; reference the GitHub issue in the message or PR when applicable.
 - Push and open a PR targeting `main`; PRs must pass CI before merge.
 - No force-pushes or amended commits unless explicitly asked.
 
@@ -266,9 +265,3 @@ Owner: **SCH-23** | Consumer: OpenClaw agent
 - App Router; Server Components by default — `"use client"` only when needed.
 - Tailwind for styling; no CSS modules.
 - shadcn/ui components; don't reinvent existing ones.
-
-## Linear tracking
-
-- **Team**: Schtvr (`SCH`) | **Milestones**: P0 MVP → P1 Follow-up → P2 Auto-trade
-- Mark issues **In Progress** when starting, **Done** when the PR merges.
-- Link PRs to their Linear issue.

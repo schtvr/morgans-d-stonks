@@ -29,11 +29,14 @@ export function PositionsTable({
   loading,
   error,
   onRetry,
+  onSymbolHover,
 }: {
   positions: PositionRow[];
   loading: boolean;
   error: string | null;
   onRetry: () => void;
+  /** Fired when the pointer enters or leaves a position row (symbol is null when leaving the table). */
+  onSymbolHover?: (symbol: string | null) => void;
 }) {
   if (loading) {
     return (
@@ -57,7 +60,10 @@ export function PositionsTable({
     return <p className="text-sm text-muted-foreground">No positions</p>;
   }
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div
+      className="overflow-x-auto rounded-md border"
+      onMouseLeave={() => onSymbolHover?.(null)}
+    >
       <Table>
         <TableHeader>
           <TableRow>
@@ -71,7 +77,10 @@ export function PositionsTable({
         </TableHeader>
         <TableBody>
           {positions.map((p) => (
-            <TableRow key={p.symbol}>
+            <TableRow
+              key={p.symbol}
+              onMouseEnter={() => onSymbolHover?.(p.symbol)}
+            >
               <TableCell className="font-medium">{p.symbol}</TableCell>
               <TableCell className="text-right">{p.quantity.toLocaleString()}</TableCell>
               <TableCell className="text-right">{fmtMoney(p.lastPrice, p.currency)}</TableCell>

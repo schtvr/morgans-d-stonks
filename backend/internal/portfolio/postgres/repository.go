@@ -68,6 +68,31 @@ func (r *Repository) LatestSnapshot(ctx context.Context) (time.Time, []byte, err
 	return takenAt, data, nil
 }
 
+// ListSnapshotsSince returns snapshots with taken_at >= since, oldest first.
+func (r *Repository) ListSnapshotsSince(ctx context.Context, since time.Time, limit int) ([]portfolio.SnapshotRecord, error) {
+	if limit <= 0 {
+		limit = 5000
+	}
+	if limit > 10000 {
+		limit = 10000
+	}
+	const q = `SELECT taken_at, data FROM snapshots WHERE taken_at >= $1 ORDER BY taken_at ASC LIMIT $2`
+	rows, err := r.pool.Query(ctx, q, since, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]portfolio.SnapshotRecord, 0)
+	for rows.Next() {
+		var rec portfolio.SnapshotRecord
+		if err := rows.Scan(&rec.TakenAt, &rec.Data); err != nil {
+			return nil, err
+		}
+		out = append(out, rec)
+	}
+	return out, rows.Err()
+}
+
 // ListFollowedSymbols returns the current crypto watchlist.
 func (r *Repository) ListFollowedSymbols(ctx context.Context) ([]portfolio.FollowedSymbol, error) {
 	const q = `

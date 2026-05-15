@@ -116,6 +116,7 @@ func main() {
 		r.Post("/api/auth/logout", app.handleLogout)
 		r.Get("/api/portfolio/positions", app.handlePositions)
 		r.Get("/api/portfolio/summary", app.handleSummary)
+		r.Get("/api/portfolio/history", app.handlePortfolioHistory)
 		r.Get("/api/trading/followed-symbols", app.handleFollowedSymbolsList)
 		r.Post("/api/trading/followed-symbols", app.handleFollowedSymbolsAdd)
 		r.Delete("/api/trading/followed-symbols/{symbol}", app.handleFollowedSymbolRemove)

@@ -20,6 +20,7 @@ type fakePortfolioRepo struct {
 	followed         map[string]portfolio.FollowedSymbol
 	seeded           bool
 	snapshot         []byte
+	snapshotSeries   []portfolio.SnapshotRecord
 	signalSetting    *portfolio.SignalSettings
 	recentAlerts     []portfolio.RecentAlert
 	labSignals       []portfolio.LabSignalEvent
@@ -49,6 +50,19 @@ func (f *fakePortfolioRepo) LatestSnapshot(context.Context) (time.Time, []byte, 
 		return time.Time{}, nil, pgx.ErrNoRows
 	}
 	return time.Now().UTC(), f.snapshot, nil
+}
+func (f *fakePortfolioRepo) ListSnapshotsSince(_ context.Context, since time.Time, limit int) ([]portfolio.SnapshotRecord, error) {
+	out := make([]portfolio.SnapshotRecord, 0, len(f.snapshotSeries))
+	for _, rec := range f.snapshotSeries {
+		if rec.TakenAt.Before(since) {
+			continue
+		}
+		out = append(out, rec)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
 }
 func (f *fakePortfolioRepo) ListFollowedSymbols(context.Context) ([]portfolio.FollowedSymbol, error) {
 	out := make([]portfolio.FollowedSymbol, 0, len(f.followed))

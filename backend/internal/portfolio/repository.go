@@ -11,6 +11,7 @@ type Repository interface {
 
 	UpsertSnapshot(ctx context.Context, takenAt time.Time, payload []byte) error
 	LatestSnapshot(ctx context.Context) (takenAt time.Time, payload []byte, err error)
+	ListSnapshotsSince(ctx context.Context, since time.Time, limit int) ([]SnapshotRecord, error)
 
 	ListFollowedSymbols(ctx context.Context) ([]FollowedSymbol, error)
 	UpsertFollowedSymbol(ctx context.Context, symbol, source string) error

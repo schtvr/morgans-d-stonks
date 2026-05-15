@@ -83,7 +83,3 @@ docs/            Runbooks and MVP verification notes
 ```
 
 See [AGENTS.md](AGENTS.md) for contributor workflow. **Post-deploy verification** and payload notes: [docs/crypto-mvp-refactor.md](docs/crypto-mvp-refactor.md).
-
-## Linear
-
-[Portfolio platform project](https://linear.app/schtvr/project/portfolio-platform-1e44112535d4) — team `SCH`.

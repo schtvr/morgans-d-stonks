@@ -5,6 +5,7 @@ import { CollapsibleSection } from "@/components/collapsible-section";
 import { CryptoAlertControlsCard } from "@/components/crypto-alert-controls-card";
 import { CryptoRecentAlertsCard } from "@/components/crypto-recent-alerts-card";
 import { CryptoWatchlistCard } from "@/components/crypto-watchlist-card";
+import { PortfolioHistoryChart } from "@/components/portfolio-history-chart";
 import { PositionsTable, type PositionRow } from "@/components/positions-table";
 import { SiteHeader } from "@/components/site-header";
 import { apiFetch } from "@/lib/api";
@@ -15,6 +16,7 @@ export default function HomePage() {
   const [positions, setPositions] = useState<PositionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hoverSymbol, setHoverSymbol] = useState<string | null>(null);
 
   const load = useCallback(async (silent = false) => {
     setError(null);
@@ -65,8 +67,22 @@ export default function HomePage() {
         >
           <AccountSummaryBar summary={summary} loading={loading} />
         </CollapsibleSection>
+        <CollapsibleSection
+          storageKey="portfolio-dashboard-collapse"
+          sectionId="value-chart"
+          title="Value over time"
+          description="From stored portfolio snapshots. Hover a symbol in positions to overlay its market value."
+        >
+          <PortfolioHistoryChart highlightSymbol={hoverSymbol} />
+        </CollapsibleSection>
         <CollapsibleSection storageKey="portfolio-dashboard-collapse" sectionId="positions" title="Positions">
-          <PositionsTable positions={positions} loading={loading} error={error} onRetry={() => void load()} />
+          <PositionsTable
+            positions={positions}
+            loading={loading}
+            error={error}
+            onRetry={() => void load()}
+            onSymbolHover={setHoverSymbol}
+          />
         </CollapsibleSection>
         <CollapsibleSection
           storageKey="portfolio-dashboard-collapse"
