@@ -30,8 +30,8 @@ func (a *app) handleInternalSnapshot(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	if err := seedFollowedSymbolsFromPositions(r.Context(), a.repo, req.Positions); err != nil && a.log != nil {
-		a.log.Warn("seed followed symbols", "err", err)
+	if err := syncFollowedSymbolsFromPositions(r.Context(), a.repo, req.Positions); err != nil && a.log != nil {
+		a.log.Warn("sync followed symbols", "err", err)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -64,8 +64,8 @@ func (a *app) handleInternalSignalSettings(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			writeJSON(w, http.StatusOK, portfolio.SignalSettings{
-				MoveThresholdPct: 1.0,
-				Cooldown:         "15m",
+				MoveThresholdPct: 2.5,
+				Cooldown:         "1h",
 				UpdatedAt:        time.Now().UTC(),
 			})
 			return
@@ -122,11 +122,7 @@ func decodeCryptoAlert(r *http.Request) (portfolio.RecentAlert, error) {
 	}, nil
 }
 
-func seedFollowedSymbolsFromLatestSnapshot(ctx context.Context, repo portfolio.Repository) error {
-	seeded, err := repo.FollowedSymbolsSeeded(ctx)
-	if err != nil || seeded {
-		return err
-	}
+func syncFollowedFromLatestSnapshot(ctx context.Context, repo portfolio.Repository) error {
 	_, payload, err := repo.LatestSnapshot(ctx)
 	if err != nil {
 		return err
@@ -135,25 +131,24 @@ func seedFollowedSymbolsFromLatestSnapshot(ctx context.Context, repo portfolio.R
 	if err := json.Unmarshal(payload, &snap); err != nil {
 		return err
 	}
-	if err := seedFollowedSymbolsFromPositions(ctx, repo, snap.Positions); err != nil {
-		return err
-	}
-	return repo.MarkFollowedSymbolsSeeded(ctx, time.Now().UTC())
+	return syncFollowedSymbolsFromPositions(ctx, repo, snap.Positions)
 }
 
-func seedFollowedSymbolsFromPositions(ctx context.Context, repo portfolio.Repository, positions []broker.Position) error {
-	seeded, err := repo.FollowedSymbolsSeeded(ctx)
-	if err != nil || seeded {
-		return err
-	}
+// syncFollowedSymbolsFromPositions keeps the price-move watchlist aligned with holdings:
+// open positions plus BTC-USD as a benchmark. Manual symbols are left untouched.
+func syncFollowedSymbolsFromPositions(ctx context.Context, repo portfolio.Repository, positions []broker.Position) error {
 	for _, p := range positions {
+		if p.Quantity <= 0 || p.MarketValue <= 0 {
+			continue
+		}
 		symbol := normalizeFollowedSymbol(p.Symbol)
 		if symbol == "" {
 			continue
 		}
-		if err := repo.UpsertFollowedSymbol(ctx, symbol, "seeded"); err != nil {
+		if err := repo.UpsertFollowedSymbol(ctx, symbol, "holding"); err != nil {
 			return err
 		}
 	}
-	return repo.MarkFollowedSymbolsSeeded(ctx, time.Now().UTC())
+	// Benchmark last so BTC-USD stays benchmark even when held.
+	return repo.UpsertFollowedSymbol(ctx, "BTC-USD", "benchmark")
 }

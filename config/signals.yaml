@@ -1,0 +1,69 @@
+version: 1
+rules:
+  # --- Watch tier (persist + log only; no agent) ---
+  - id: "drawdown-5pct"
+    name: "5% Drawdown vs Cost"
+    description: "Early warning vs cost basis"
+    agent: false
+    cooldown: "4h"
+    condition:
+      type: "price_change_pct"
+      field: "unrealizedPLPct"
+      operator: "lte"
+      threshold: -5.0
+
+  - id: "concentration-20pct"
+    name: "Position ≥ 20% of Portfolio"
+    description: "Allocation watch"
+    agent: false
+    cooldown: "24h"
+    condition:
+      type: "concentration"
+      field: "marketValuePct"
+      operator: "gte"
+      threshold: 20.0
+
+  # --- Act tier (agent review) ---
+  - id: "drawdown-10pct"
+    name: "10% Drawdown vs Cost"
+    description: "Material unrealized loss vs cost basis"
+    agent: true
+    cooldown: "24h"
+    condition:
+      type: "price_change_pct"
+      field: "unrealizedPLPct"
+      operator: "lte"
+      threshold: -10.0
+
+  - id: "concentration-25pct"
+    name: "Position ≥ 25% of Portfolio"
+    description: "Overweight — rebalance review"
+    agent: true
+    cooldown: "24h"
+    condition:
+      type: "concentration"
+      field: "marketValuePct"
+      operator: "gte"
+      threshold: 25.0
+
+  - id: "winner-30pct"
+    name: "30% Gain vs Cost"
+    description: "Large winner — trim or hold"
+    agent: true
+    cooldown: "24h"
+    condition:
+      type: "price_change_pct"
+      field: "unrealizedPLPct"
+      operator: "gte"
+      threshold: 30.0
+
+  - id: "cash-heavy"
+    name: "Cash ≥ 30% of Portfolio"
+    description: "High cash — deploy or stay defensive"
+    agent: true
+    cooldown: "7d"
+    condition:
+      type: "cash_pct"
+      field: "totalCashPct"
+      operator: "gte"
+      threshold: 30.0

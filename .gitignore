@@ -11,3 +11,7 @@ dist/
 coverage/
 data/
 .DS_Store
+# Go build artifacts
+backend/portfolio-api
+backend/signals
+backend/ingest

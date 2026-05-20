@@ -5,7 +5,7 @@ import "time"
 // Position is the canonical internal position model.
 type Position struct {
 	Symbol       string    `json:"symbol"`
-	ConID        int64     `json:"conId"`
+	InstrumentID int64     `json:"instrumentId"`
 	Quantity     float64   `json:"quantity"`
 	AvgCost      float64   `json:"avgCost"`
 	MarketValue  float64   `json:"marketValue"`
@@ -27,11 +27,11 @@ type AccountSummary struct {
 
 // Quote is a last/bid/ask snapshot for a symbol.
 type Quote struct {
-	Symbol    string    `json:"symbol"`
-	ConID     int64     `json:"conId"`
-	Last      float64   `json:"last"`
-	Bid       float64   `json:"bid"`
-	Ask       float64   `json:"ask"`
-	Volume    int64     `json:"volume"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Symbol       string    `json:"symbol"`
+	InstrumentID int64     `json:"instrumentId"`
+	Last         float64   `json:"last"`
+	Bid          float64   `json:"bid"`
+	Ask          float64   `json:"ask"`
+	Volume       int64     `json:"volume"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }

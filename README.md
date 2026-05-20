@@ -1,6 +1,6 @@
 # morgans-d-stonks
 
-Local homelab **crypto portfolio and watchlist** dashboard with deterministic **Coinbase** price-move alerts. Alerts post to **Discord** as a short summary plus fenced **`crypto_signal_v1`** JSON for **OpenClaw** (and similar agents); order execution and IBKR are **backlog**, not the default path.
+Local homelab **crypto portfolio and watchlist** dashboard with deterministic **Coinbase** price-move alerts. **Discord** carries a short summary plus fenced **`crypto_signal_v1`** JSON as the **primary bus for OpenClaw**; operators use the **dashboard and logs for audit/observation**, not approvals. **Target posture:** **closed-loop** signal handling and trading (**no human-in-the-loop**), gated only by software (`TRADING_*`, kill switch). Optional **order execution** is behind `TRADING_ENABLED` and trade keys — not the default MVP compose path.
 
 ## Stack
 
@@ -43,7 +43,7 @@ flowchart TB
 ## Local development
 
 1. `cp .env.example .env` and set **`DATABASE_URL`**, **`INTERNAL_API_KEY`**, **`COINBASE_READ_API_KEY`**, **`COINBASE_READ_API_SECRET`**, and optional **`DISCORD_WEBHOOK_URL`**.
-2. `docker compose up --build` — starts **web**, **portfolio-api**, **ingest**, **signals**, and **Postgres** (no `ib-gateway` or `trading-worker` in the default stack).
+2. `docker compose up --build` — starts **web**, **portfolio-api**, **ingest**, **signals**, and **Postgres** (no optional **trading-worker** in the default stack).
 3. Open http://localhost:3000 — sign in with **`AUTH_USERNAME`** / **`AUTH_PASSWORD`** from `.env`.
 4. API health: http://localhost:8080/api/health
 
@@ -52,12 +52,12 @@ Use Node **22.22.0** for local frontend work (see `frontend/.nvmrc`).
 ### Crypto alerts and OpenClaw
 
 - The **signals** service uses persisted **alert settings** (threshold %, cooldown) and the **watchlist**.
-- When Discord is configured, each firing posts a **one-line summary** and a fenced **`json`** block containing **`crypto_signal_v1`**. OpenClaw can consume that message in Discord.
-- **Recent alerts** are stored in Postgres (including the exact JSON payload in **`payload_json`**).
+- When Discord is configured, each firing posts a **one-line summary** (for audit scans) and a fenced **`json`** block containing **`crypto_signal_v1`** — structured for **OpenClaw**, not as a human approval inbox.
+- **Recent alerts** are stored in Postgres (including the exact JSON payload in **`payload_json`**) for dashboard review and replay.
 
 ### Backlog (not default)
 
-- **IBKR** and **`ib-gateway`** are not part of the MVP compose story.
+- **trading-worker** is not part of the default MVP compose story (enable with `TRADING_ENABLED=true` when you intentionally want execution).
 - **Order execution** (`/internal/orders`, `/mcp/v1/trades`, `trading-worker`) is implemented in-repo but **disabled** unless **`TRADING_ENABLED=true`**. To experiment, merge the optional override:
 
   `docker compose -f docker-compose.yml -f docker-compose.coinbase.yml up -d --build`

@@ -51,6 +51,10 @@ type Rule struct {
 	Name        string    `yaml:"name"`
 	Description string    `yaml:"description"`
 	Condition   Condition `yaml:"condition"`
+	// Agent, when true, enqueues a shadow agent decision (portfolio rules path only).
+	Agent bool `yaml:"agent"`
+	// Cooldown is an optional per-rule suppression window (Go duration string, e.g. "24h").
+	Cooldown string `yaml:"cooldown"`
 }
 
 // Condition is evaluated per position.

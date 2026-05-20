@@ -12,4 +12,7 @@ func TestBrokerValidate(t *testing.T) {
 	if err := (Broker{Provider: "coinbase", CoinbaseReadAPIKey: "k", CoinbaseReadAPISecret: "s"}).Validate(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if err := (Broker{Provider: "mock"}).Validate(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }

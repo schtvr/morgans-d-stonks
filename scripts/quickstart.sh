@@ -65,21 +65,19 @@ write_env_file() {
     printf 'POSTGRES_DB=%s\n' "$POSTGRES_DB"
     printf 'DATABASE_URL=%s\n' "$DATABASE_URL"
     printf '%s\n' ''
-    printf '%s\n' '# Broker routing'
-    printf 'BROKER_PROVIDER=ibkr\n'
+    printf '%s\n' '# Broker routing (Coinbase read for ingest; mock needs no keys — set in .env manually)'
+    printf 'BROKER_PROVIDER=coinbase\n'
     printf 'BROKER_ENV=paper\n'
-    printf 'INGEST_BROKER_PROVIDER=ibkr\n'
+    printf 'INGEST_BROKER_PROVIDER=coinbase\n'
     printf 'INGEST_BROKER_ENV=paper\n'
-    printf 'INGEST_IBKR_MODE=%s\n' "$IBKR_MODE"
     printf 'PORTFOLIO_BROKER_PROVIDER=coinbase\n'
     printf 'PORTFOLIO_BROKER_ENV=paper\n'
     printf 'TRADING_BROKER_PROVIDER=coinbase\n'
     printf 'TRADING_BROKER_ENV=paper\n'
     printf '%s\n' ''
-    printf '%s\n' '# IBKR (use IBKR_MODE=paper or live when a real gateway is available)'
-    printf 'IBKR_GATEWAY_HOST=ib-gateway\n'
-    printf 'IBKR_GATEWAY_PORT=4001\n'
-    printf 'IBKR_MODE=%s\n' "$IBKR_MODE"
+    printf '%s\n' '# Coinbase read API (CDP — required for ingest/signals with live data)'
+    printf 'COINBASE_READ_API_KEY=%s\n' "${COINBASE_READ_API_KEY:-}"
+    printf 'COINBASE_READ_API_SECRET=%s\n' "${COINBASE_READ_API_SECRET:-}"
     printf '%s\n' ''
     printf '%s\n' '# Auth (portfolio-api)'
     printf 'AUTH_USERNAME=%s\n' "$AUTH_USERNAME"
@@ -95,19 +93,13 @@ write_env_file() {
     printf '%s\n' ''
     printf '%s\n' '# Signals'
     printf 'SIGNAL_RULES_PATH=./config/signals.yaml\n'
+    printf 'SIGNAL_MOVE_THRESHOLD_PCT=2.5\n'
     printf 'SIGNAL_COOLDOWN=1h\n'
     printf 'SIGNAL_INTERVAL=5m\n'
     printf 'SIGNAL_STATE_PATH=./data/signal-state.json\n'
-    printf '%s\n' ''
-    printf '%s\n' '# IBKR Client Portal (paper/live; optional)'
-    printf 'IBKR_CLIENT_PORTAL_PORT=5000\n'
-    printf '%s\n' ''
-    printf '%s\n' '# Discord'
-    if [[ -n "${DISCORD_WEBHOOK_URL:-}" ]]; then
-      printf 'DISCORD_WEBHOOK_URL=%s\n' "$DISCORD_WEBHOOK_URL"
-    else
-      printf 'DISCORD_WEBHOOK_URL=\n'
-    fi
+    printf 'SIGNAL_RULE_DEDUP_PATH=./data/signal-rules-dedup.json\n'
+    printf 'SIGNAL_RULE_COOLDOWN=24h\n'
+    printf 'SIGNAL_AGENT_MAX_PER_SYMBOL_24H=2\n'
     printf '%s\n' ''
     printf '%s\n' '# portfolio-api CORS (only if you set NEXT_PUBLIC_API_URL for direct browser → :8080)'
     printf 'CORS_ALLOWED_ORIGINS=%s\n' "$CORS_ALLOWED_ORIGINS"
@@ -169,13 +161,9 @@ if [[ "$CONFIGURE" == true ]]; then
   DISCORD_WEBHOOK_URL="$(read_optional_empty "Discord webhook URL for signals")"
 
   echo ""
-  echo "IBKR: 1) mock (no live gateway, recommended for local Docker)"
-  echo "      2) paper"
-  read -r -p "Choice [1]: " ibkr_choice || true
-  case "${ibkr_choice:-1}" in
-    2) IBKR_MODE="paper" ;;
-    *) IBKR_MODE="mock" ;;
-  esac
+  echo "Coinbase read API (paste CDP key + secret; leave empty to fill later in .env):"
+  COINBASE_READ_API_KEY="$(read_optional_empty "COINBASE_READ_API_KEY")"
+  COINBASE_READ_API_SECRET="$(read_optional_empty "COINBASE_READ_API_SECRET")"
 
   CORS_ALLOWED_ORIGINS="http://localhost:3000,http://127.0.0.1:3000"
 

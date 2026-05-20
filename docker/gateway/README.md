@@ -1,6 +1,3 @@
-# IB Gateway (stub)
+# Gateway stubs
 
-Paper trading gateway for Interactive Brokers. Image and credentials are TBD for local homelab use.
-
-- Expose ports `4001` and `4002` when running in Docker (see root `docker-compose.yml`).
-- For development without a gateway, set `IBKR_MODE=mock` in `.env`.
+This directory is reserved for **optional** local stubs or operator notes. The default **MVP compose stack** uses **Coinbase** read APIs only (`COINBASE_READ_*` in `.env.example`); there is no separate gateway container in the default `docker-compose.yml`.

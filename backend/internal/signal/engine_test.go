@@ -60,3 +60,32 @@ func TestEvaluatePriceChange(t *testing.T) {
 		t.Fatalf("expected 1 event, got %+v", evs)
 	}
 }
+
+func TestEvaluateCashPct(t *testing.T) {
+	rule := Rule{
+		ID:   "cash-heavy",
+		Name: "Cash heavy",
+		Condition: Condition{
+			Type:      "cash_pct",
+			Operator:  "gte",
+			Threshold: 30,
+		},
+	}
+	snap := &portfolio.IngestSnapshotRequest{
+		TakenAt: time.Now().UTC(),
+		Summary: broker.AccountSummary{
+			NetLiquidation: 10000,
+			TotalCash:      3500,
+		},
+	}
+	evs, err := EvaluateCashPct(rule, snap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 1 || evs[0].Symbol != PortfolioRuleSymbol {
+		t.Fatalf("unexpected: %+v", evs)
+	}
+	if evs[0].Value != 35 {
+		t.Fatalf("cash pct: got %v", evs[0].Value)
+	}
+}

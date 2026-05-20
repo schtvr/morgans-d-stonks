@@ -33,7 +33,16 @@ export function SiteHeader() {
               <Link href="/">Portfolio</Link>
             </Button>
             <Button asChild variant="ghost" size="sm">
-              <Link href="/lab">The Lab</Link>
+              <Link href="/pulse">Pulse</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/agent">Agent</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/lab">
+                The Lab{" "}
+                <span className="ml-0.5 text-xs text-muted-foreground">(legacy)</span>
+              </Link>
             </Button>
           </nav>
         </div>

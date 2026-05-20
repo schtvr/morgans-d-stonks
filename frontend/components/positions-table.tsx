@@ -29,14 +29,14 @@ export function PositionsTable({
   loading,
   error,
   onRetry,
-  onSymbolHover,
+  onSymbolClick,
 }: {
   positions: PositionRow[];
   loading: boolean;
   error: string | null;
   onRetry: () => void;
-  /** Fired when the pointer enters or leaves a position row (symbol is null when leaving the table). */
-  onSymbolHover?: (symbol: string | null) => void;
+  /** When set, clicking a row opens market candles for that symbol (e.g. chart). */
+  onSymbolClick?: (symbol: string) => void;
 }) {
   if (loading) {
     return (
@@ -60,10 +60,7 @@ export function PositionsTable({
     return <p className="text-sm text-muted-foreground">No positions</p>;
   }
   return (
-    <div
-      className="overflow-x-auto rounded-md border"
-      onMouseLeave={() => onSymbolHover?.(null)}
-    >
+    <div className="overflow-x-auto rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -79,7 +76,8 @@ export function PositionsTable({
           {positions.map((p) => (
             <TableRow
               key={p.symbol}
-              onMouseEnter={() => onSymbolHover?.(p.symbol)}
+              className={onSymbolClick ? "cursor-pointer hover:bg-muted/50" : undefined}
+              onClick={onSymbolClick ? () => onSymbolClick(p.symbol) : undefined}
             >
               <TableCell className="font-medium">{p.symbol}</TableCell>
               <TableCell className="text-right">{p.quantity.toLocaleString()}</TableCell>
@@ -91,6 +89,9 @@ export function PositionsTable({
           ))}
         </TableBody>
       </Table>
+      {onSymbolClick ? (
+        <p className="border-t px-3 py-2 text-xs text-muted-foreground">Click a row to chart Coinbase candles for that symbol.</p>
+      ) : null}
     </div>
   );
 }

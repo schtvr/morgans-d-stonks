@@ -72,3 +72,42 @@ func TestMigrationContainsLabTables(t *testing.T) {
 		}
 	}
 }
+
+func TestMigrationContainsAgentDecisionsTable(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("migrations", "007_agent_decisions.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"CREATE TABLE IF NOT EXISTS agent_decisions",
+		"idempotency_key TEXT NOT NULL UNIQUE",
+		"trigger_kind",
+		"action",
+		"confidence",
+		"cost_cents",
+		"tool_calls_json",
+	} {
+		if !strings.Contains(string(b), want) {
+			t.Fatalf("missing %q in migration 007", want)
+		}
+	}
+}
+
+func TestMigrationContainsAgentDecisionOutcomesTable(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("migrations", "008_agent_decision_outcomes.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"CREATE TABLE IF NOT EXISTS agent_decision_outcomes",
+		"symbol_return_pct",
+		"btc_return_pct",
+		"realized_return_pct",
+		"excess_return_pct",
+		"UNIQUE (decision_id, horizon)",
+	} {
+		if !strings.Contains(string(b), want) {
+			t.Fatalf("missing %q in migration 008", want)
+		}
+	}
+}

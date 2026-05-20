@@ -29,7 +29,7 @@ internal/
   config/           # Shared config loading
 pkg/                # Public-API Go packages (if any)
 docker/
-  gateway/          # IB Gateway Dockerfile / config stubs
+  gateway/          # Optional stubs / docs (no default compose service)
 ```
 
 - Each `cmd/` binary should have a minimal `main.go` that compiles and prints a placeholder message.
@@ -47,7 +47,6 @@ Create `docker-compose.yml` at root:
 | `ingest`         | `./` (target cmd)       | —                  | One-shot or long-running job             |
 | `signals`        | `./` (target cmd)       | —                  | Triggered after ingest or on schedule    |
 | `db`             | `postgres:16-alpine`    | `5432:5432`        | Dev convenience; schema owned by SCH-18  |
-| `ib-gateway`     | TBD (stub/docs)         | `4001:4001 4002:4002` | IB Gateway paper; document host variant |
 
 - Define a shared network `portfolio-net` (bridge).
 - Use `.env` file for secrets/config; create `.env.example` with placeholder keys.
@@ -72,10 +71,10 @@ POSTGRES_PASSWORD=changeme
 POSTGRES_DB=portfolio
 DATABASE_URL=postgres://portfolio:changeme@db:5432/portfolio?sslmode=disable
 
-# IBKR
-IBKR_GATEWAY_HOST=ib-gateway
-IBKR_GATEWAY_PORT=4001
-IBKR_MODE=paper
+# Coinbase read (ingest / signals)
+BROKER_PROVIDER=coinbase
+COINBASE_READ_API_KEY=
+COINBASE_READ_API_SECRET=
 
 # Auth
 AUTH_SECRET=changeme-32-char-min
@@ -94,19 +93,16 @@ Add a `README.md` section:
 ## Local Development
 
 1. `cp .env.example .env` and fill in values
-2. `docker compose up` — starts web, API, DB, IB Gateway stub
+2. `docker compose up` — starts web, API, DB, ingest, signals
 3. Web UI: http://localhost:3000
 4. API: http://localhost:8080/health
-
-### IB Gateway
-
-For local development without IB Gateway, set `IBKR_MODE=mock`.
-With Gateway on the host (not in Docker), set `IBKR_GATEWAY_HOST=host.docker.internal`.
 ```
+
+Set `COINBASE_READ_API_KEY` and `COINBASE_READ_API_SECRET` for live read data. For CI or smoke tests without keys, use `BROKER_PROVIDER=mock` where supported.
 
 ## Do NOT
 
-- Implement any IBKR business logic (owned by SCH-20).
+- Implement the Coinbase broker adapter or ingest scheduler (owned by SCH-20 / SCH-21).
 - Create DB migrations or schema (owned by SCH-18).
 - Build dashboard UI beyond the Next.js scaffold (owned by SCH-17).
 - Add production infrastructure (TLS termination, reverse proxy config).

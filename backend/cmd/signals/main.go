@@ -12,16 +12,25 @@ import (
 	osignal "os/signal"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
+	"github.com/schtvr/morgans-d-stonks/internal/agent"
 	"github.com/schtvr/morgans-d-stonks/internal/broker"
 	"github.com/schtvr/morgans-d-stonks/internal/broker/coinbase"
 	"github.com/schtvr/morgans-d-stonks/internal/config"
-	"github.com/schtvr/morgans-d-stonks/internal/discord"
 	"github.com/schtvr/morgans-d-stonks/internal/logging"
+	agentmcp "github.com/schtvr/morgans-d-stonks/internal/mcp/agent"
 	"github.com/schtvr/morgans-d-stonks/internal/portfolio"
 	sigpkg "github.com/schtvr/morgans-d-stonks/internal/signal"
+)
+
+// Package-level agent state — set once at startup and read by the signal loop.
+var (
+	agentWorker        *agent.Worker
+	agentPromptVersion string
+	lastSnap           atomic.Pointer[portfolio.IngestSnapshotRequest]
 )
 
 func main() {
@@ -29,12 +38,25 @@ func main() {
 	cfg := config.LoadSignals()
 	brokerCfg := config.LoadBroker()
 
+	rules, err := sigpkg.LoadRulesFile(cfg.RulesPath)
+	if err != nil {
+		log.Error("signal rules load", "path", cfg.RulesPath, "err", err)
+		os.Exit(1)
+	}
+	ruleByID := indexRules(rules)
+	log.Info("signal_rules_loaded", "path", cfg.RulesPath, "count", len(rules))
+
 	state, err := sigpkg.NewAlertState(cfg.StatePath)
 	if err != nil {
 		log.Error("state", "err", err)
 		os.Exit(1)
 	}
-	dc := discord.NewClient(cfg.DiscordWebhookURL)
+	ruleDedup, err := sigpkg.NewDedup(cfg.RulesDedupPath)
+	if err != nil {
+		log.Error("rule dedup state", "err", err)
+		os.Exit(1)
+	}
+
 	cb := brokerCfg.ToLegacyBrokerConfig()
 	coinbaseClient := coinbase.NewReadOnly(nil, "", cb.CoinbaseAPIKey, cb.CoinbaseAPISecret)
 
@@ -47,13 +69,80 @@ func main() {
 		cancel()
 	}()
 
+	// Agent startup — initialise when AGENT_ENABLED=true.
+	agentCfg := config.LoadAgent()
+	if err := agentCfg.Validate(); err != nil {
+		log.Error("invalid agent config", "err", err)
+		os.Exit(1)
+	}
+
+	if agentCfg.Enabled {
+		prompt, err := agent.LoadPrompt(agentCfg.PromptPath)
+		if err != nil {
+			log.Error("agent prompt load", "err", err)
+			os.Exit(1)
+		}
+		agentPromptVersion = prompt.Version
+
+		hcAgent := &http.Client{Timeout: 25 * time.Second}
+		_, mcpCli, err := agentmcp.NewInProcessServer(
+			coinbaseClient,
+			agentCfg.PortfolioAPIURL,
+			agentCfg.InternalAPIKey,
+			hcAgent,
+			0, // 0 = read INGEST_INTERVAL from env
+		)
+		if err != nil {
+			log.Error("mcp server init", "err", err)
+			os.Exit(1)
+		}
+
+		provider, err := newAgentProvider(agentCfg, mcpCli, prompt)
+		if err != nil {
+			log.Error("agent provider init", "err", err)
+			os.Exit(1)
+		}
+
+		costRepo := &httpCostRepo{hc: hcAgent, baseURL: agentCfg.PortfolioAPIURL, apiKey: agentCfg.InternalAPIKey}
+		costTracker := agent.NewCostTracker(costRepo, agentCfg.DailyCostCapCents)
+
+		agentWorker = agent.NewWorker(agent.WorkerConfig{
+			Provider:        provider,
+			Concurrency:     agentCfg.Concurrency,
+			CostTracker:     costTracker,
+			PortfolioAPIURL: agentCfg.PortfolioAPIURL,
+			InternalAPIKey:  agentCfg.InternalAPIKey,
+			Log:             log,
+		})
+		agentWorker.Start(ctx)
+		defer agentWorker.Stop()
+
+		latestSnap := func() *portfolio.IngestSnapshotRequest { return lastSnap.Load() }
+		go runDailyTimer(ctx, log, agentCfg.DailyTimerUTC, agentWorker.Enqueue, latestSnap, agentPromptVersion, time.Now)
+
+		log.Info("agent_started",
+			"provider", agentCfg.Provider,
+			"model", agentCfg.Model,
+			"prompt_version", agentPromptVersion,
+			"concurrency", agentCfg.Concurrency,
+			"daily_timer_utc", agentCfg.DailyTimerUTC,
+		)
+	}
+
 	hc := &http.Client{Timeout: 30 * time.Second}
-	discordEnabled := cfg.DiscordWebhookURL != ""
 	t := time.NewTicker(cfg.Interval)
 	defer t.Stop()
 
+	runOpts := runOnceOpts{
+		rules:                  rules,
+		ruleByID:               ruleByID,
+		ruleDedup:              ruleDedup,
+		defaultRuleCooldown:    cfg.RuleCooldown,
+		agentMaxPerSymbol24h:   cfg.AgentMaxPerSymbol24h,
+	}
+
 	run := func() {
-		if err := runOnce(ctx, log, hc, coinbaseClient, state, cfg.PortfolioAPIURL, cfg.InternalAPIKey, cfg.ThresholdPct, cfg.Cooldown, dc, discordEnabled); err != nil {
+		if err := runOnce(ctx, log, hc, coinbaseClient, state, cfg.PortfolioAPIURL, cfg.InternalAPIKey, cfg.ThresholdPct, cfg.Cooldown, runOpts); err != nil {
 			log.Warn("tick", "err", err)
 		}
 	}
@@ -69,6 +158,14 @@ func main() {
 	}
 }
 
+type runOnceOpts struct {
+	rules                  []sigpkg.Rule
+	ruleByID               map[string]sigpkg.Rule
+	ruleDedup              *sigpkg.Dedup
+	defaultRuleCooldown    time.Duration
+	agentMaxPerSymbol24h   int
+}
+
 func runOnce(
 	ctx context.Context,
 	log *slog.Logger,
@@ -79,8 +176,7 @@ func runOnce(
 	apiKey string,
 	defaultThresholdPct float64,
 	defaultCooldown time.Duration,
-	dc *discord.Client,
-	discordEnabled bool,
+	opts runOnceOpts,
 ) error {
 	start := time.Now()
 	settings, err := fetchSignalSettings(ctx, hc, baseURL, apiKey)
@@ -105,32 +201,49 @@ func runOnce(
 	if err != nil {
 		return err
 	}
+	lastSnap.Store(snap)
+
 	positions := make(map[string]broker.Position, len(snap.Positions))
 	for _, p := range snap.Positions {
-		positions[strings.ToUpper(strings.TrimSpace(p.Symbol))] = p
+		positions[normalizeSymbol(p.Symbol)] = p
 	}
 
 	evaluated := 0
-	fired := 0
-	sent := 0
-	discordErrors := 0
+	moveFired := 0
+	moveAgent := 0
+	moveAgentSkippedNotHeld := 0
+	moveAgentSkippedCap := 0
 	skipped := 0
-	var discordPayloads []string
+	var portfolioStats portfolioRulesStats
 
 	defer func() {
 		log.Info("signals_tick",
 			"duration_ms", time.Since(start).Milliseconds(),
 			"followed_count", len(followed),
-			"alerts_evaluated", evaluated,
-			"alerts_fired", fired,
-			"alerts_sent", sent,
+			"move_alerts_evaluated", evaluated,
+			"move_alerts_fired", moveFired,
+			"move_agent_enqueued", moveAgent,
+			"move_agent_skipped_not_held", moveAgentSkippedNotHeld,
+			"move_agent_skipped_cap", moveAgentSkippedCap,
+			"portfolio_rules_fired", portfolioStats.Fired,
+			"portfolio_agent_enqueued", portfolioStats.AgentEnqueued,
+			"portfolio_rules_skipped_dedup", portfolioStats.SkippedDedup,
+			"portfolio_agent_skipped_cap", portfolioStats.SkippedAgentCap,
 			"alerts_skipped", skipped,
-			"discord_enabled", discordEnabled,
-			"discord_errors", discordErrors,
 		)
 	}()
 
 	now := time.Now().UTC()
+
+	portfolioStats, err = processPortfolioRules(
+		ctx, log, hc, opts.rules, opts.ruleByID, snap, opts.ruleDedup,
+		opts.defaultRuleCooldown, opts.agentMaxPerSymbol24h,
+		baseURL, apiKey, agentPromptVersion, now,
+	)
+	if err != nil {
+		return fmt.Errorf("portfolio rules: %w", err)
+	}
+
 	for _, item := range followed {
 		symbol := coinbase.CanonicalToProviderSymbol(item.Symbol)
 		if symbol == "" {
@@ -172,31 +285,29 @@ func runOnce(
 			skipped++
 			continue
 		}
-		fired++
-		alert := buildCryptoAlert(item, symbol, q.Last, decision, positions[symbol], now, thresholdPct, gate.ReasonFlags)
-		payload, err := discord.CryptoAlertWebhookContent(alert)
-		if err != nil {
-			return err
-		}
+		moveFired++
+		alert := buildCryptoAlert(item, symbol, q.Last, decision, positions[normalizeSymbol(symbol)], now, thresholdPct, gate.ReasonFlags)
+
 		if err := persistRecentAlert(ctx, hc, baseURL, apiKey, alert); err != nil && log != nil {
 			log.Warn("recent alert persist", "symbol", alert.Symbol, "err", err)
 		}
-		if !discordEnabled {
-			log.Info("crypto_alert", "payload", payload)
-			sent++
+
+		log.Info("price_move_fired",
+			"type", alert.Type,
+			"symbol", alert.Symbol,
+			"delta_pct", alert.DeltaPct,
+			"threshold_pct", alert.ThresholdPct,
+		)
+
+		pos := positions[normalizeSymbol(symbol)]
+		if !hasOpenPosition(pos) {
+			moveAgentSkippedNotHeld++
 			continue
 		}
-		discordPayloads = append(discordPayloads, payload)
-	}
-	if discordEnabled && len(discordPayloads) > 0 {
-		const batchSep = "\n---\n"
-		for _, chunk := range discord.WebhookChunks(discordPayloads, batchSep, discord.WebhookContentMaxRunes) {
-			if err := dc.SendMessage(ctx, chunk.Content); err != nil {
-				discordErrors++
-				log.Warn("discord", "err", err)
-				continue
-			}
-			sent += chunk.AlertsApplied
+		if ok, reason := tryEnqueueAgent(ctx, log, hc, snap, alert, agentPromptVersion, opts.agentMaxPerSymbol24h, baseURL, apiKey, now); ok {
+			moveAgent++
+		} else if reason == "symbol_decision_cap" {
+			moveAgentSkippedCap++
 		}
 	}
 	return nil

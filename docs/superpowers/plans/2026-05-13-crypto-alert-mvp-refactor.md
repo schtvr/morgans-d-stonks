@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Refactor the repo so the default path is a local homelab crypto portfolio/watchlist dashboard that ingests Coinbase read data, fires deterministic `crypto_signal_v1` price-move alerts to Discord for OpenClaw consumption, and keeps IBKR/trading backlog code out of the MVP runtime path.
+**Goal:** Refactor the repo so the default path is a local homelab crypto portfolio/watchlist dashboard that ingests Coinbase read data, fires deterministic `crypto_signal_v1` price-move alerts to Discord for OpenClaw consumption, and keeps optional trading execution code out of the MVP runtime path.
 
-**Architecture:** Keep `portfolio-api` as the single backend service and DB owner. Keep Coinbase ingest, watchlist, alert settings, recent alerts, and Discord signal emission in the MVP path; preserve IBKR and trading/order execution code as backlog/shelved code with tests, but remove them from default compose, dashboard, and route registration.
+**Architecture:** Keep `portfolio-api` as the single backend service and DB owner. Keep Coinbase ingest, watchlist, alert settings, recent alerts, and Discord signal emission in the MVP path; preserve trading/order execution code as backlog/shelved code with tests, but remove it from default compose, dashboard, and route registration.
 
 **Tech Stack:** Go 1.25 backend with chi, pgx, slog; Next.js frontend with npm/Vitest; Postgres; Docker Compose; Discord webhook integration.
 
@@ -15,7 +15,7 @@
 - MVP promise: local homelab crypto portfolio/watchlist dashboard with deterministic Coinbase price-move alerts.
 - Coinbase read API credentials are assumed present for the product path.
 - Mock/demo remains useful for CI and first boot, but is not the primary product path.
-- IBKR is backlog only, not a planned follow-up phase.
+- Equities / non-Coinbase brokers are out of scope for this MVP.
 - Trading/order execution and MCP trade endpoints are retained as shelved code, but removed from the default runtime path.
 - OpenClaw consumes the Discord-visible signal payload externally; this repo does not host an OpenClaw MCP server for MVP.
 - Signal payload is crypto-only `v1`.
@@ -32,8 +32,8 @@
 - `backend/internal/discord/signal_message.go` currently returns raw compact JSON for crypto alerts.
 - `backend/internal/portfolio/postgres/migrations/004_recent_alerts.sql` stores normalized recent-alert fields, but not exact payload JSON.
 - `frontend/app/page.tsx` renders `TradeActivityCard`.
-- `docker-compose.yml` includes `trading-worker` and `ib-gateway`.
-- `README.md` and `.env.example` still present IBKR/trading too prominently for the agreed MVP.
+- `docker-compose.yml` includes `trading-worker` in some branches; default MVP removes it from the primary stack.
+- `README.md` and `.env.example` still present trading keys too prominently for the agreed MVP.
 
 ## Parallelization Strategy
 
@@ -327,7 +327,7 @@ Expected: all selected packages pass.
 
 ---
 
-## Task 3: Remove IBKR and Trading from Default Runtime Path
+## Task 3: Remove optional trading from default runtime path
 
 **Subagent lane:** runtime cleanup. Can run after Task 1; does not depend on Task 2.
 
@@ -340,7 +340,7 @@ Expected: all selected packages pass.
 
 - [ ] **Step 1: Remove backlog services from base compose**
 
-In `docker-compose.yml`, remove the `trading-worker` service and the `ib-gateway` service from the default stack.
+In `docker-compose.yml`, remove the `trading-worker` service from the default stack (if still present).
 
 Update `ingest` environment defaults to Coinbase-first:
 
@@ -351,7 +351,7 @@ COINBASE_READ_API_KEY: ${COINBASE_READ_API_KEY:-}
 COINBASE_READ_API_SECRET: ${COINBASE_READ_API_SECRET:-}
 ```
 
-Remove `IBKR_*` env vars from the default `ingest` service. Keep `portfolio-api`, `web`, `ingest`, `signals`, and `db`.
+Remove legacy gateway env vars from the default `ingest` service (if any remain). Keep `portfolio-api`, `web`, `ingest`, `signals`, and `db`.
 
 - [ ] **Step 2: Turn `docker-compose.coinbase.yml` into a backlog/trading override**
 
@@ -492,10 +492,10 @@ Expected:
 - Coinbase read API credentials are required for real portfolio snapshots.
 - Signals post a one-line summary plus fenced `crypto_signal_v1` JSON to Discord.
 - OpenClaw consumes Discord payload externally.
-- Trading/order execution and IBKR are backlog, not default runtime.
+- Trading/order execution is backlog, not default runtime.
 - `docker compose up` starts `web`, `portfolio-api`, `ingest`, `signals`, `db`.
 
-Remove or demote language that says IBKR is the primary broker.
+Remove or demote language that implies a non-Coinbase broker is primary.
 
 - [ ] **Step 2: Clean `.env.example`**
 
@@ -510,10 +510,10 @@ COINBASE_READ_API_KEY=
 COINBASE_READ_API_SECRET=
 ```
 
-Move IBKR variables under a clearly labeled backlog section:
+Move any legacy env vars under a clearly labeled backlog section:
 
 ```env
-# Backlog / not part of MVP default runtime: IBKR
+# Backlog / not part of MVP default runtime: optional execution
 ```
 
 Move trading variables under a clearly labeled backlog section:
@@ -554,12 +554,12 @@ At the top of `docs/mcp-crypto-execution-spec.md`, add:
 > Backlog note: MCP trade execution is not part of the MVP. OpenClaw consumes `crypto_signal_v1` payloads from Discord for MVP.
 ```
 
-- [ ] **Step 5: Verify docs mention no default IBKR path**
+- [ ] **Step 5: Verify docs describe Coinbase-first defaults**
 
 Search:
 
 ```bash
-rg "IBKR|ib-gateway|trading-worker|MCP trade|order execution" README.md .env.example docs
+rg "trading-worker|MCP trade|order execution" README.md .env.example docs
 ```
 
 Expected: any matches are clearly labeled as backlog or historical.
@@ -625,7 +625,7 @@ signals
 db
 ```
 
-No `ib-gateway` or `trading-worker` in the default service list.
+No `trading-worker` in the default service list.
 
 - [ ] **Step 5: Optional smoke boot**
 
@@ -672,7 +672,7 @@ Implement Task 2 from `docs/superpowers/plans/2026-05-13-crypto-alert-mvp-refact
 
 ### Task 3 Prompt
 
-Implement Task 3 from `docs/superpowers/plans/2026-05-13-crypto-alert-mvp-refactor.md`: remove IBKR and trading from the default runtime path while preserving backlog code/tests. Update compose and route registration. Run compose config and focused backend tests. Return the default `docker compose config --services` list and route behavior notes.
+Implement Task 3 from `docs/superpowers/plans/2026-05-13-crypto-alert-mvp-refactor.md`: remove optional trading from the default runtime path while preserving backlog code/tests. Update compose and route registration. Run compose config and focused backend tests. Return the default `docker compose config --services` list and route behavior notes.
 
 ### Task 4 Prompt
 
@@ -680,7 +680,7 @@ Implement Task 4 from `docs/superpowers/plans/2026-05-13-crypto-alert-mvp-refact
 
 ### Task 5 Prompt
 
-Implement Task 5 from `docs/superpowers/plans/2026-05-13-crypto-alert-mvp-refactor.md`: update README, `.env.example`, and docs so the crypto alert MVP is the current source of truth and IBKR/trading/MCP trade execution are backlog. Run the docs search command and report remaining legacy references.
+Implement Task 5 from `docs/superpowers/plans/2026-05-13-crypto-alert-mvp-refactor.md`: update README, `.env.example`, and docs so the crypto alert MVP is the current source of truth and trading/MCP trade execution are backlog. Run the docs search command and report remaining legacy references.
 
 ### Task 6 Prompt
 

@@ -10,17 +10,52 @@ import (
 	"github.com/schtvr/morgans-d-stonks/internal/portfolio"
 )
 
+// PortfolioRuleSymbol is the synthetic symbol for account-level rule events.
+const PortfolioRuleSymbol = "_PORTFOLIO"
+
 // EvaluateAll runs all rules against the latest snapshot.
 func EvaluateAll(rules []Rule, snap *portfolio.IngestSnapshotRequest) ([]SignalEvent, error) {
 	var out []SignalEvent
 	for _, rule := range rules {
-		evs, err := Evaluate(rule, snap)
+		var evs []SignalEvent
+		var err error
+		switch rule.Condition.Type {
+		case "cash_pct":
+			evs, err = EvaluateCashPct(rule, snap)
+		default:
+			evs, err = Evaluate(rule, snap)
+		}
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, evs...)
 	}
 	return out, nil
+}
+
+// EvaluateCashPct evaluates a portfolio-level cash % rule (one event max).
+func EvaluateCashPct(rule Rule, snap *portfolio.IngestSnapshotRequest) ([]SignalEvent, error) {
+	if snap == nil {
+		return nil, nil
+	}
+	nl := snap.Summary.NetLiquidation
+	if nl <= 0 {
+		return nil, nil
+	}
+	pct := (snap.Summary.TotalCash / nl) * 100
+	if !compare(rule.Condition.Operator, pct, rule.Condition.Threshold) {
+		return nil, nil
+	}
+	return []SignalEvent{{
+		ID:        uuid.NewString(),
+		RuleID:    rule.ID,
+		RuleName:  rule.Name,
+		Symbol:    PortfolioRuleSymbol,
+		Signal:    fmt.Sprintf("%s | %s", PortfolioRuleSymbol, rule.Name),
+		Value:     pct,
+		Threshold: rule.Condition.Threshold,
+		FiredAt:   time.Now().UTC(),
+	}}, nil
 }
 
 // Evaluate runs a single rule against the snapshot (pure).

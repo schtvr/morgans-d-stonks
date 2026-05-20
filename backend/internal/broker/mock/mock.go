@@ -32,15 +32,15 @@ func (b *Broker) Capabilities() map[broker.Capability]bool {
 func (b *Broker) Positions(ctx context.Context) ([]broker.Position, error) {
 	_ = ctx
 	return []broker.Position{
-		{Symbol: "AAPL", Quantity: 10, AvgCost: 180.5, MarketValue: 1850.0, UnrealizedPL: 45.0},
-		{Symbol: "MSFT", Quantity: 5, AvgCost: 330.0, MarketValue: 1700.0, UnrealizedPL: 50.0},
+		{Symbol: "BTC-USD", Quantity: 0.25, AvgCost: 40000, MarketValue: 10500.0, UnrealizedPL: 500.0},
+		{Symbol: "ETH-USD", Quantity: 2, AvgCost: 2000, MarketValue: 4200.0, UnrealizedPL: 200.0},
 	}, nil
 }
 
 func (b *Broker) AccountSummary(ctx context.Context) (*broker.AccountSummary, error) {
 	_ = ctx
 	return &broker.AccountSummary{
-		AccountID:      "DU-MOCK",
+		AccountID:      "mock-coinbase",
 		NetLiquidation: 100000,
 		BuyingPower:    200000,
 		TotalCash:      25000,

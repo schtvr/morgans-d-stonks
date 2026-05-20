@@ -24,20 +24,14 @@ export const PORTFOLIO_HISTORY_RANGES: { value: PortfolioHistoryRange; label: st
   { value: "1y", label: "1y" },
 ];
 
-export type ChartRow = {
+export type PortfolioChartRow = {
   asOf: string;
   label: string;
   portfolio: number;
-  /** Market value for the highlighted symbol, or null when absent in that snapshot. */
-  symbolValue: number | null;
 };
 
-export function toChartRows(points: PortfolioHistoryPoint[], highlightSymbol: string | null): ChartRow[] {
+export function toPortfolioChartRows(points: PortfolioHistoryPoint[]): PortfolioChartRow[] {
   return points.map((p) => {
-    let symbolValue: number | null = null;
-    if (highlightSymbol && p.bySymbol && Object.prototype.hasOwnProperty.call(p.bySymbol, highlightSymbol)) {
-      symbolValue = p.bySymbol[highlightSymbol]!;
-    }
     const d = new Date(p.asOf);
     return {
       asOf: p.asOf,
@@ -45,7 +39,54 @@ export function toChartRows(points: PortfolioHistoryPoint[], highlightSymbol: st
         ? p.asOf
         : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
       portfolio: p.totalValue,
-      symbolValue,
     };
   });
+}
+
+/** One OHLCV candle from GET /api/market/candles (Coinbase). */
+export type MarketCandlePoint = {
+  asOf: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};
+
+export type MarketCandlesResponse = {
+  symbol: string;
+  productId: string;
+  range: PortfolioHistoryRange;
+  granularity: string;
+  from: string;
+  to: string;
+  points: MarketCandlePoint[];
+};
+
+export type CandleChartRow = {
+  asOf: string;
+  label: string;
+  close: number;
+};
+
+export function toCandleChartRows(points: MarketCandlePoint[]): CandleChartRow[] {
+  return points.map((p) => {
+    const d = new Date(p.asOf);
+    return {
+      asOf: p.asOf,
+      label: Number.isNaN(d.getTime())
+        ? p.asOf
+        : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+      close: p.close,
+    };
+  });
+}
+
+export function quoteCurrencyFromSymbol(symbol: string): string {
+  const s = symbol.trim().toUpperCase();
+  const i = s.lastIndexOf("-");
+  if (i >= 0 && i < s.length - 1) {
+    return s.slice(i + 1);
+  }
+  return "USD";
 }

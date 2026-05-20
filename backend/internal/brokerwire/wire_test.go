@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewMock(t *testing.T) {
-	b, err := New(broker.Config{Mode: "mock"})
+	b, err := New(broker.Config{Provider: "mock"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,7 +21,7 @@ func TestNewMock(t *testing.T) {
 }
 
 func TestNewExecutionUnsupportedMode(t *testing.T) {
-	_, err := NewExecution(broker.Config{Mode: "mock"})
+	_, err := NewExecution(broker.Config{Provider: "mock"})
 	if err == nil {
 		t.Fatal("expected unsupported execution error")
 	}

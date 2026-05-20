@@ -40,4 +40,19 @@ type Repository interface {
 	CreateSession(ctx context.Context, token, username string, expiresAt time.Time) error
 	SessionUser(ctx context.Context, token string) (username string, err error)
 	DeleteSession(ctx context.Context, token string) error
+
+	// Agent decision CRUD.
+	InsertAgentDecision(ctx context.Context, d AgentDecision) (*AgentDecision, error)
+	GetAgentDecision(ctx context.Context, id int64) (*AgentDecision, error)
+	GetAgentDecisionByIdempotencyKey(ctx context.Context, key string) (*AgentDecision, error)
+	ListAgentDecisions(ctx context.Context, filter AgentDecisionFilter) ([]AgentDecision, error)
+	CountDecisionsForSymbolSince(ctx context.Context, symbol string, since time.Time) (int, error)
+	SumCostCentsForDay(ctx context.Context, day time.Time) (int64, error)
+	ListAgentCostDaily(ctx context.Context, days int) ([]AgentCostPoint, error)
+
+	// Agent decision outcome CRUD.
+	InsertAgentDecisionOutcome(ctx context.Context, o AgentDecisionOutcome) (*AgentDecisionOutcome, error)
+	ListUnscoredDecisionHorizons(ctx context.Context, now time.Time, limit int) ([]UnscoredHorizon, error)
+	ListAgentDecisionOutcomes(ctx context.Context, filter AgentDecisionOutcomeFilter) ([]AgentDecisionOutcome, error)
+	ListBenchmarkDaily(ctx context.Context, horizon string, days int) ([]AgentBenchmarkPoint, error)
 }

@@ -1,5 +1,12 @@
 # SCH-23: OpenClaw, MCP & Alert Intelligence
 
+> **SUPERSEDED** by [`agent-shadow-decisions.md`](./agent-shadow-decisions.md) (2026-05-18).
+> The Agent now runs **in-process** inside `signals` with a local RO MCP server.
+> External OpenClaw integration is dropped. The `lab_openclaw_runs` table is preserved
+> for historical data but is no longer enqueued. Read the new epic + the plan at
+> `docs/superpowers/plans/2026-05-18-agent-shadow-decisions.md` before doing any
+> work in this area. The content below is retained for history only.
+
 > **Linear**: [SCH-23](https://linear.app/schtvr/issue/SCH-23/epic-p1-openclaw-mcp-and-alert-intelligence)
 > **Milestone**: P1: First follow-up
 > **Wave**: 5 (all P0 complete; parallel with SCH-22)
@@ -7,7 +14,7 @@
 
 ## Objective
 
-Route structured `SignalEvent` traffic into OpenClaw with relevant MCP tools (portfolio snapshot, fundamentals/news), hardening the alert proxy path. Default to human-in-the-loop — no broker orders from this epic.
+Route structured `SignalEvent` traffic into OpenClaw with relevant MCP tools (portfolio snapshot, policy, fundamentals/news), hardening the proxy path. **Discord is the machine channel** (OpenClaw consumes fenced JSON); humans **audit via dashboard/logs only**. **Product target:** **no human-in-the-loop** for signal handling or trading — **closed loop** `signal → OpenClaw → execution` gated only by **software** policy (`TRADING_*`, kill switch, limits). SCH-23 owns proxy + MCP; **order submission** may live in **SCH-24** / `trading-worker` but MUST honor the same policy envelope and MUST NOT require human approval in Discord.
 
 ## Scope
 
@@ -30,8 +37,8 @@ Signal Engine (P0)          OpenClaw Proxy           OpenClaw
                              └──────────────┘
                                     │
                                     ▼
-                             Human approval
-                             (Discord / dashboard)
+                             Observability & audit
+                             (Discord transcript, logs, dashboard — not an approval gate)
 ```
 
 ### OpenClaw proxy service (`cmd/openclaw-proxy/`)
@@ -42,7 +49,7 @@ A new Go service that:
 2. **Enriches** with portfolio context (positions, account summary) via the portfolio API.
 3. **Forwards** to OpenClaw with MCP tool definitions attached.
 4. **Receives** the agent's analysis/recommendation.
-5. **Routes** the recommendation to the human-in-the-loop channel (Discord rich alert via SCH-22, or a dashboard notification).
+5. **Emits** structured artifacts for OpenClaw (Discord fenced JSON as the default bus) and **forwards** agent output toward **execution** when enabled — **no human approval step**; humans observe via logs/dashboard/Discord history only.
 
 **Delivery mechanism** — pick one and document:
 
@@ -103,15 +110,16 @@ Implement MCP tool servers that OpenClaw's agent can call:
 
 #### Portfolio snapshot MCP (`internal/mcp/portfolio/`)
 
-Exposes portfolio data as MCP tools:
+Exposes portfolio data as MCP tools. **v0 semantics:** tools return the **latest ingest snapshot** from Postgres (same backing data as `GET /api/portfolio/positions` / summary), not a live Coinbase call per invocation. Each response includes `source: "ingest_snapshot"` and `timestamp` (snapshot `takenAt`). Live exchange reads are a future opt-in with a distinct `source`.
 
 | Tool | Description | Input | Output |
 |------|-------------|-------|--------|
-| `get_positions` | Current portfolio positions | `{}` | `{ positions: [...] }` |
-| `get_account_summary` | Account-level metrics | `{}` | `{ summary: {...} }` |
-| `get_position_detail` | Detail for a specific symbol | `{ symbol: "AAPL" }` | `{ position: {...}, history: [...] }` |
+| `get_positions` | Holdings as of last ingest | `{ portfolioId }` (required once multi-account exists; v0 may omit if single-tenant) | `{ source, timestamp, positions: [...] }` — positions use broker domain fields (`symbol`, `quantity`, `avgCost`, `marketValue`, …) |
+| `get_account_summary` | Account-level metrics from same snapshot | `{}` or `{ portfolioId }` | `{ source, timestamp, summary: {...} }` |
+| `get_position_detail` | Detail for a specific symbol | `{ symbol: "BTC-USD" }` | `{ source, timestamp, position: {...}, history: [...] }` |
+| `get_policy` | **Execution-only:** trading limits + rollout flags (**env-derived v0**) | `{}` or `{ portfolioId }` | `{ source: "env_derived", freshness: { asOf }, tradingEnabled, killSwitch, maxNotional, reserve, globalMaxExposure, symbolCooldown, allowedProviders, allowedSymbols, deniedSymbols, constraints[] }` — **exclude** `SIGNAL_*` / ingest / alert-rule config |
 
-Implementation: thin HTTP wrapper around the portfolio API (SCH-18).
+Implementation: thin HTTP wrapper around the portfolio API (SCH-18) or shared repository read — **must not** call Coinbase REST on each MCP tool tick in v0. **`get_policy`** reads the same **`TRADING_*`** env as `internal/config/trading.go` (plus broker provider context); **no DB policy store in v0**. **`get_policy` is execution-only:** do not surface signals/ingest env (`SIGNAL_*`, `INGEST_*`, rules files). `freshness.asOf` = wall time at read.
 
 #### News/fundamentals MCP (`internal/mcp/market/`)
 
@@ -126,12 +134,12 @@ Implementation options for P1:
 - Mock data (sufficient for testing the pipeline).
 - Free API integration (Alpha Vantage, Finnhub — document choice if real).
 
-### Human-in-the-loop
+### Automation, execution handoff, and audit
 
-- **Default mode**: all OpenClaw recommendations are for human review only.
-- Route agent output to Discord (using SCH-22's rich alert format) or a dashboard notification endpoint.
-- No automated order placement — that's P2 (SCH-24).
-- Log the full request/response cycle for audit.
+- **No HITL:** Do not require a human click/emoji/reply in Discord for trades or signal handling to proceed.
+- **Software gates only:** `TRADING_KILL_SWITCH`, `get_policy` / `TRADING_*` limits, symbol allow/deny lists, and worker-side validation are the **sole** hard stops before orders hit the broker.
+- **Discord:** Treat as **durable machine-readable telemetry** for OpenClaw plus human **read-only** audit (replay, correlation IDs).
+- **Execution:** SCH-23 may stop at “normalized intent” toward SCH-24 / `trading-worker`, but the **architecture must not** insert a human approval queue between agent decision and policy-checked execution.
 
 ### Observability
 
@@ -164,7 +172,8 @@ Depends on: `portfolio-api`, `signals`.
 
 ## Do NOT
 
-- Implement auto-trade execution or order placement (P2, SCH-24).
+- Insert **human-in-the-loop** approvals (Discord reactions, manual dashboard confirms) on the hot path for signals or trades.
+- **Bypass** `TRADING_KILL_SWITCH`, `get_policy` limits, or execution-worker validation when submitting orders.
 - Replace or modify P0's deterministic signal rules (SCH-16 owns those).
 - Build a full ML/LLM signal pipeline — OpenClaw is the agent runtime.
 - Expose MCP servers to the public internet.
@@ -176,7 +185,7 @@ Depends on: `portfolio-api`, `signals`.
 - [ ] OpenClaw failures do not block or wedge the signal pipeline.
 - [ ] Circuit breaker activates after consecutive failures; resumes after reset period.
 - [ ] Idempotency: duplicate request IDs are handled gracefully.
-- [ ] Human-in-the-loop: agent recommendations routed to Discord or dashboard, not to broker.
+- [ ] **Audit-only humans:** no approval gate in Discord or dashboard; operators can still inspect payloads, logs, and persisted alerts.
 - [ ] All secrets redacted from logs.
 - [ ] Decision doc: async vs sync delivery mechanism.
 
@@ -187,14 +196,14 @@ This epic **consumes**:
 - **SCH-16** `SignalEvent` — the trigger for OpenClaw runs.
 - **SCH-18** Portfolio API — fetches positions/summary for context + MCP tools.
 - **SCH-20** Broker domain types — used in `PortfolioContext`.
-- **SCH-22** Rich Discord alerts — routes recommendations to human.
+- **SCH-22** Rich Discord alerts — **machine channel + audit** (structured payloads for OpenClaw; humans read-only).
 
 This epic **produces**:
 
 - `OpenClawRequest` / `OpenClawResponse` — the integration contract with OpenClaw.
 - MCP tool servers — consumed by OpenClaw's agent.
 - Audit logs of agent invocations.
-- Foundation for P2 auto-trade (SCH-24 will extend recommendation routing to order placement).
+- **Closed-loop handoff** to SCH-24 / execution surfaces when `TRADING_ENABLED` — policy-checked, **no human approval** in the path.
 
 ## Files to create/modify
 
