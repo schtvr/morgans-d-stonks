@@ -102,6 +102,9 @@ func (f *fakePortfolioRepo) UpdateSignalSettings(_ context.Context, req portfoli
 	}
 	return nil
 }
+func (f *fakePortfolioRepo) ListRecentAlertsFiltered(_ context.Context, _ string, _ time.Time, _ int) ([]portfolio.RecentAlert, error) {
+	return nil, nil
+}
 func (f *fakePortfolioRepo) ListRecentAlerts(context.Context, int) ([]portfolio.RecentAlert, error) {
 	out := make([]portfolio.RecentAlert, len(f.recentAlerts))
 	copy(out, f.recentAlerts)

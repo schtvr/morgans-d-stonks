@@ -21,6 +21,7 @@ type Repository interface {
 	GetSignalSettings(ctx context.Context) (*SignalSettings, error)
 	UpdateSignalSettings(ctx context.Context, req SignalSettingsRequest) error
 	ListRecentAlerts(ctx context.Context, limit int) ([]RecentAlert, error)
+	ListRecentAlertsFiltered(ctx context.Context, symbol string, since time.Time, limit int) ([]RecentAlert, error)
 	InsertRecentAlert(ctx context.Context, alert RecentAlert) error
 	InsertLabSignalEvent(ctx context.Context, alert RecentAlert) (*LabSignalEvent, error)
 	ListLabSignalEvents(ctx context.Context, filter LabSignalFilter) ([]LabSignalEvent, error)

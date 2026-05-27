@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -74,6 +75,39 @@ func (a *app) handleInternalSignalSettings(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, settings)
+}
+
+// handleInternalRecentAlertsList handles GET /internal/recent-alerts/list.
+// Query params: symbol (optional), since (RFC3339, required), limit (int, default 20, max 50).
+func (a *app) handleInternalRecentAlertsList(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+
+	sinceStr := q.Get("since")
+	if sinceStr == "" {
+		http.Error(w, "missing 'since' query param", http.StatusBadRequest)
+		return
+	}
+	since, err := time.Parse(time.RFC3339, sinceStr)
+	if err != nil {
+		http.Error(w, "invalid 'since': must be RFC3339", http.StatusBadRequest)
+		return
+	}
+
+	limit := 20
+	if ls := q.Get("limit"); ls != "" {
+		if v, err := strconv.Atoi(ls); err == nil && v > 0 {
+			limit = v
+		}
+	}
+
+	symbol := q.Get("symbol")
+
+	alerts, err := a.repo.ListRecentAlertsFiltered(r.Context(), symbol, since, limit)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, alerts)
 }
 
 func (a *app) handleInternalRecentAlertCreate(w http.ResponseWriter, r *http.Request) {

@@ -239,6 +239,81 @@ LIMIT $1`
 	return out, rows.Err()
 }
 
+// ListRecentAlertsFiltered returns alerts with optional symbol and since filters.
+// limit is clamped to [1, 50]; empty symbol means all symbols.
+func (r *Repository) ListRecentAlertsFiltered(ctx context.Context, symbol string, since time.Time, limit int) ([]portfolio.RecentAlert, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	scanAlerts := func(rows interface {
+		Next() bool
+		Close()
+		Err() error
+		Scan(dest ...any) error
+	}) ([]portfolio.RecentAlert, error) {
+		defer rows.Close()
+		out := make([]portfolio.RecentAlert, 0, limit)
+		for rows.Next() {
+			var item portfolio.RecentAlert
+			if err := rows.Scan(
+				&item.ID,
+				&item.Type,
+				&item.Symbol,
+				&item.ProductID,
+				&item.Source,
+				&item.CurrentPrice,
+				&item.PreviousPrice,
+				&item.DeltaAmount,
+				&item.DeltaPct,
+				&item.ThresholdPct,
+				&item.Quantity,
+				&item.AvgCost,
+				&item.CostBasis,
+				&item.UnrealizedPL,
+				&item.UnrealizedPLPct,
+				&item.FiredAt,
+				&item.CreatedAt,
+				&item.PayloadJSON,
+			); err != nil {
+				return nil, err
+			}
+			out = append(out, item)
+		}
+		return out, rows.Err()
+	}
+
+	const cols = `
+SELECT id, type, symbol, product_id, source, current_price, previous_price, delta_amount, delta_pct, threshold_pct,
+       quantity, avg_cost, cost_basis, unrealized_pl, unrealized_pl_pct, fired_at, created_at, payload_json
+FROM recent_alerts`
+
+	if symbol != "" {
+		const q = cols + `
+WHERE fired_at >= $1 AND symbol = $2
+ORDER BY fired_at DESC, id DESC
+LIMIT $3`
+		rows, err := r.pool.Query(ctx, q, since, symbol, limit)
+		if err != nil {
+			return nil, err
+		}
+		return scanAlerts(rows)
+	}
+
+	const q = cols + `
+WHERE fired_at >= $1
+ORDER BY fired_at DESC, id DESC
+LIMIT $2`
+	rows, err := r.pool.Query(ctx, q, since, limit)
+	if err != nil {
+		return nil, err
+	}
+	return scanAlerts(rows)
+}
+
 // InsertRecentAlert stores a fired alert for dashboard history.
 func (r *Repository) InsertRecentAlert(ctx context.Context, alert portfolio.RecentAlert) error {
 	const q = `
@@ -859,10 +934,10 @@ func (r *Repository) ListAgentCostDaily(ctx context.Context, days int) ([]portfo
 	}
 	const q = `
 SELECT (trigger_at AT TIME ZONE 'UTC')::date::text AS day,
-       SUM(cost_cents) AS cost_cents,
-       COUNT(*) AS decisions
+       COALESCE(SUM(cost_cents), 0)::bigint AS cost_cents,
+       COUNT(*)::int AS decisions
 FROM agent_decisions
-WHERE trigger_at >= now() - ($1 || ' days')::interval
+WHERE trigger_at >= now() - ($1::int * interval '1 day')
 GROUP BY day
 ORDER BY day DESC`
 	rows, err := r.pool.Query(ctx, q, days)
@@ -1012,16 +1087,16 @@ func (r *Repository) ListBenchmarkDaily(ctx context.Context, horizon string, day
 	}
 	const q = `
 SELECT
-    (d.trigger_at AT TIME ZONE 'UTC')::date AS day,
+    (d.trigger_at AT TIME ZONE 'UTC')::date::text AS day,
     COALESCE(AVG(CASE WHEN d.action IN ('buy','sell') THEN o.realized_return_pct END), 0) AS realized_return_pct,
     COALESCE(AVG(CASE WHEN d.action IN ('buy','sell') THEN o.btc_return_pct END), 0)      AS btc_return_pct,
     COALESCE(AVG(CASE WHEN d.action IN ('buy','sell') THEN o.excess_return_pct END), 0)   AS excess_return_pct,
-    COUNT(CASE WHEN d.action IN ('buy','sell') THEN 1 END)                                AS decision_count,
-    COUNT(CASE WHEN d.action = 'ignore' THEN 1 END)                                       AS ignore_count
+    COUNT(CASE WHEN d.action IN ('buy','sell') THEN 1 END)::int                          AS decision_count,
+    COUNT(CASE WHEN d.action = 'ignore' THEN 1 END)::int                                 AS ignore_count
 FROM agent_decision_outcomes o
 JOIN agent_decisions d ON d.id = o.decision_id
 WHERE o.horizon = $1
-  AND d.trigger_at >= now() - ($2 || ' days')::interval
+  AND d.trigger_at >= now() - ($2::int * interval '1 day')
 GROUP BY day
 ORDER BY day DESC`
 	rows, err := r.pool.Query(ctx, q, horizon, days)

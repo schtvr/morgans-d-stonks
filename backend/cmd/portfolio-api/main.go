@@ -95,6 +95,7 @@ func main() {
 			DeniedSymbols:     tradingCfg.DeniedSymbols,
 			SymbolCooldown:    tradingCfg.SymbolCooldown,
 			GlobalMaxExposure: tradingCfg.GlobalMaxExposure,
+			MinHoldings:       tradingCfg.MinHoldings,
 		}),
 		metrics: &trading.Metrics{},
 		dc:      discord.NewClient(cfg.DiscordWebhookURL),
@@ -165,6 +166,7 @@ func main() {
 		r.Get("/internal/followed-symbols", app.handleInternalFollowedSymbols)
 		r.Get("/internal/signal-settings", app.handleInternalSignalSettings)
 		r.Post("/internal/recent-alerts", app.handleInternalRecentAlertCreate)
+		r.Get("/internal/recent-alerts/list", app.handleInternalRecentAlertsList)
 		r.Post("/internal/agent-decisions", app.handleInternalAgentDecisionCreate)
 		r.Get("/internal/agent-decisions/list", app.handleInternalAgentDecisionsList)
 		r.Get("/internal/agent-decisions/count", app.handleInternalAgentDecisionsCount)

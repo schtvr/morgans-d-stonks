@@ -178,6 +178,9 @@ func (f *agentTestRepo) GetSignalSettings(context.Context) (*portfolio.SignalSet
 func (f *agentTestRepo) UpdateSignalSettings(context.Context, portfolio.SignalSettingsRequest) error {
 	return nil
 }
+func (f *agentTestRepo) ListRecentAlertsFiltered(_ context.Context, _ string, _ time.Time, _ int) ([]portfolio.RecentAlert, error) {
+	return nil, nil
+}
 func (f *agentTestRepo) ListRecentAlerts(context.Context, int) ([]portfolio.RecentAlert, error) {
 	return nil, nil
 }
