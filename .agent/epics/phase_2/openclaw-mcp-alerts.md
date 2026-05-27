@@ -1,11 +1,9 @@
 # SCH-23: OpenClaw, MCP & Alert Intelligence
 
-> **SUPERSEDED** by [`agent-shadow-decisions.md`](./agent-shadow-decisions.md) (2026-05-18).
-> The Agent now runs **in-process** inside `signals` with a local RO MCP server.
-> External OpenClaw integration is dropped. The `lab_openclaw_runs` table is preserved
-> for historical data but is no longer enqueued. Read the new epic + the plan at
-> `docs/superpowers/plans/2026-05-18-agent-shadow-decisions.md` before doing any
-> work in this area. The content below is retained for history only.
+> **SUPERSEDED by SCH-AG1** — OpenClaw integration removed. In-process LLM agent (signals service) handles decisions. See `agent-shadow-decisions.md`.
+> The Agent runs **in-process** inside `signals` with a local RO MCP server.
+> The `lab_openclaw_runs` table is preserved for historical data but is no longer enqueued.
+> The content below is retained for history only.
 
 > **Linear**: [SCH-23](https://linear.app/schtvr/issue/SCH-23/epic-p1-openclaw-mcp-and-alert-intelligence)
 > **Milestone**: P1: First follow-up

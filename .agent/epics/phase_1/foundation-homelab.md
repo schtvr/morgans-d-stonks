@@ -1,5 +1,7 @@
 # SCH-19: Foundation & Homelab Delivery
 
+> **Status: Implemented** — verified 2026-05
+
 > **Linear**: [SCH-19](https://linear.app/schtvr/issue/SCH-19/epic-p0-foundation-homelab-delivery)
 > **Milestone**: P0: MVP
 > **Wave**: 1 (no dependencies — land first)

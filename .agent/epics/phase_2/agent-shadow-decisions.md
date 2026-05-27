@@ -1,5 +1,10 @@
 # SCH-AG1: The Agent — shadow-mode decision loop
 
+> **Status: Core shadow loop implemented** — verified 2026-05.
+> Trade execution via `order_bridge.go` + `AGENT_TRADE_ENABLED` extends beyond pure shadow mode;
+> live order placement is gated by `TRADING_ENABLED` and the policy envelope.
+> See acceptance criteria below for remaining items.
+
 > **Milestone**: P1.5 (post-MVP, replaces SCH-23 OpenClaw scope)
 > **Wave**: 5 (parallel with SCH-22 rich alerts)
 > **Depends on**: P0 complete — specifically SCH-16 (signals + gate), SCH-18 (portfolio API), SCH-21 (ingest snapshots)
@@ -251,17 +256,17 @@ Two companion charts:
 
 ## Acceptance criteria
 
-- [ ] With `AGENT_ENABLED=true` and `AGENT_PROVIDER=mock`, a gate-passed signal results in an `agent_decisions` row within ~1s.
-- [ ] Daily timer at `AGENT_DAILY_TIMER_UTC` enqueues exactly one trigger per UTC day; idempotency key `daily-YYYY-MM-DD` rejects duplicates.
-- [ ] With `AGENT_PROVIDER=anthropic` + valid key, the mock can be swapped end-to-end with no schema change; tool-call trace is persisted per decision.
-- [ ] `AGENT_DAILY_COST_CAP_USD` exceeded → next trigger short-circuits to `action=ignore`, `rationale="daily cost cap reached"`, cost=0; restores at UTC midnight.
-- [ ] Scorer fills `agent_decision_outcomes` rows for all horizons whose deadline has passed; rerunning scorer is idempotent.
-- [ ] `GET /api/agent/benchmark?window=14d` returns a daily series of `excessReturnPct` plus headline rolling-14d mean.
-- [ ] Frontend `/agent` page renders: decisions list, drilldown with tool-call timeline, benchmark chart, cost meter.
-- [ ] OpenClaw enqueue path (`recordLabSignal` → `lab_openclaw_runs`) is removed. Existing rows untouched.
-- [ ] Per-symbol serialization: two concurrent triggers on the same symbol cannot produce two in-flight decisions.
-- [ ] Provider/MCP failures log + skip; never fall back to a heuristic action. No partial decisions persisted.
-- [ ] Mock provider deterministic in CI; no live API calls in default `go test ./...`.
+- [x] With `AGENT_ENABLED=true` and `AGENT_PROVIDER=mock`, a gate-passed signal results in an `agent_decisions` row within ~1s.
+- [x] Daily timer at `AGENT_DAILY_TIMER_UTC` enqueues exactly one trigger per UTC day; idempotency key `daily-YYYY-MM-DD` rejects duplicates.
+- [x] With `AGENT_PROVIDER=anthropic` + valid key, the mock can be swapped end-to-end with no schema change; tool-call trace is persisted per decision.
+- [x] `AGENT_DAILY_COST_CAP_USD` exceeded → next trigger short-circuits to `action=ignore`, `rationale="daily cost cap reached"`, cost=0; restores at UTC midnight.
+- [x] Scorer fills `agent_decision_outcomes` rows for all horizons whose deadline has passed; rerunning scorer is idempotent.
+- [x] `GET /api/agent/benchmark?window=14d` returns a daily series of `excessReturnPct` plus headline rolling-14d mean.
+- [x] Frontend `/agent` page renders: decisions list, drilldown with tool-call timeline, benchmark chart, cost meter.
+- [x] OpenClaw enqueue path (`recordLabSignal` → `lab_openclaw_runs`) is removed. Existing rows untouched.
+- [x] Per-symbol serialization: two concurrent triggers on the same symbol cannot produce two in-flight decisions.
+- [x] Provider/MCP failures log + skip; never fall back to a heuristic action. No partial decisions persisted.
+- [x] Mock provider deterministic in CI; no live API calls in default `go test ./...`.
 
 ## File impact map
 

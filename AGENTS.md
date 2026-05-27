@@ -13,10 +13,9 @@
 morgans-d-stonks/
 ├── AGENTS.md
 ├── README.md
-├── go.mod / go.sum
 ├── docker-compose.yml
+├── docker-compose.coinbase.yml   # optional trading-worker override
 ├── docker-compose.override.yml
-├── Dockerfile                   # multi-stage Go build
 ├── .env.example
 ├── .gitignore
 ├── .github/workflows/ci.yml
@@ -34,32 +33,37 @@ morgans-d-stonks/
 │   │   │       └── stories/
 │   │   └── phase_2/             # P1 (first follow-up) epics
 │   │       ├── rich-alerts-dashboard-analytics.md
-│   │       └── openclaw-mcp-alerts.md
+│   │       ├── agent-shadow-decisions.md
+│   │       └── openclaw-mcp-alerts.md  # SUPERSEDED
 │   └── skills/                  # Short agent checklists (read with assigned epic)
 │       └── logging.md
-├── apps/
-│   └── web/                     # Next.js dashboard
-├── cmd/
-│   ├── portfolio-api/
-│   ├── ingest/
-│   ├── signals/
-│   └── agent-worker/            # P1.5 (SCH-AG1, runs inside signals)
-├── internal/
-│   ├── broker/
-│   ├── portfolio/
-│   ├── auth/
-│   ├── ingest/
-│   ├── signal/
-│   ├── discord/
-│   ├── logging/                 # P1 shared slog setup (epic_P1_logging)
-│   ├── openclaw/                # P1
-│   ├── mcp/                     # P1
-│   │   ├── portfolio/
-│   │   └── market/
-│   └── config/
+├── backend/                      # Go backend module
+│   ├── go.mod / go.sum
+│   ├── Dockerfile                # multi-stage Go build
+│   ├── cmd/
+│   │   ├── portfolio-api/
+│   │   ├── ingest/
+│   │   ├── signals/              # agent runs in-process here (SCH-AG1)
+│   │   └── trading-worker/
+│   └── internal/
+│       ├── broker/
+│       ├── portfolio/
+│       ├── auth/
+│       ├── ingest/
+│       ├── signal/
+│       ├── discord/
+│       ├── logging/              # shared slog setup (epic_P1_logging)
+│       ├── openclaw/             # deprecated; data preserved, not enqueued
+│       ├── mcp/
+│       │   ├── agent/            # 7 RO tools (stdio MCP server)
+│       │   └── trades/           # HTTP trade request mapping
+│       ├── trading/
+│       └── config/
+├── frontend/                     # Next.js dashboard (compose service: web)
 ├── config/
-│   └── signals.yaml
-└── pkg/
+│   ├── signals.yaml
+│   └── agent-prompt.md
+└── docs/
 ```
 
 ## Agent skills
@@ -92,8 +96,8 @@ For structured logging work, read `.agent/skills/logging.md` alongside `.agent/e
 ### Testing
 
 - Every new package must have at least one `_test.go` file (Go) or `*.test.ts` file (TS).
-- Run `go test ./...` before pushing Go changes.
-- Run `pnpm test` (or `npm test`) before pushing dashboard changes.
+- Run `cd backend && go test ./...` before pushing Go changes.
+- Run `cd frontend && npm test` before pushing dashboard changes.
 - CI runs the same checks; a failing CI blocks merge.
 
 ### Parallelism
@@ -121,7 +125,7 @@ Phase 1 (P0) ──────────────────────�
 Phase 2 (P1) ──────────────────────────────────────────────
 │
 │  Wave 5:  SCH-22  Rich Alerts & Analytics  (parallel)
-│           SCH-AG1 The Agent — shadow decisions
+│           SCH-AG1 The Agent — see `phase_2/agent-shadow-decisions.md`
 │           P1 logging (stdout JSON / Loki) — see `phase_1/logging/epic_P1_logging.md`
 │
 ```
@@ -130,18 +134,30 @@ Phase 2 (P1) ──────────────────────�
 
 Changes to any contract require updating all listed consuming epics.
 
-### Broker interface (`internal/broker/broker.go`)
+### Broker interface (`backend/internal/broker/broker.go`)
 
 Owner: **SCH-20** | Consumers: SCH-21, SCH-16
 
+The interface was split into capability-specific interfaces. `ReadBroker` is the primary interface for read consumers; `type Broker = ReadBroker` is an alias kept for backward compatibility.
+
 ```go
-type Broker interface {
+// ReadBroker is the shared contract for market/account data (SCH-20 implements).
+type ReadBroker interface {
     Positions(ctx context.Context) ([]Position, error)
     AccountSummary(ctx context.Context) (*AccountSummary, error)
     Quotes(ctx context.Context, symbols []string) ([]Quote, error)
     IsMarketOpen(ctx context.Context) (bool, error)
     Close() error
 }
+
+// ExecutionBroker defines trading operations.
+type ExecutionBroker interface {
+    PlaceOrder(ctx context.Context, intent OrderIntent) (*Order, error)
+    CancelOrder(ctx context.Context, orderID string) error
+}
+
+// Broker remains backward-compatible with existing read consumers.
+type Broker = ReadBroker
 ```
 
 ### Portfolio API endpoints
@@ -157,14 +173,12 @@ Owner: **SCH-18** | Consumers: SCH-17, SCH-21
 | `GET` | `/api/health` | Public | all |
 | `POST` | `/internal/snapshots` | Internal key | SCH-21 |
 
-P1 extensions (owner: **SCH-22**):
+P1 extensions (owner: **SCH-22**, key routes shown — full list in `main.go`):
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/api/portfolio/history` | Session | Portfolio value over time |
 | `GET` | `/api/market/candles` | Session | Coinbase product candles (`symbol`, `range`) for charting |
-| `GET` | `/api/portfolio/positions/:symbol/history` | Session | Per-position history |
-| `GET` | `/api/portfolio/metrics` | Session | Period returns + drawdown |
 
 ### SignalEvent type
 
@@ -214,7 +228,33 @@ type DecisionRequest struct {
 
 type EagerContext struct {
     PortfolioSummary      PortfolioSummaryLine `json:"portfolioSummary"`
-    DecisionsForSymbol24h *int `json:"decisionsForSymbol24h,omitempty"`
+    // DecisionsForSymbol24h is nil for daily triggers; count of prior decisions
+    // on this symbol in the last 24h for signal triggers.
+    DecisionsForSymbol24h *int     `json:"decisionsForSymbol24h,omitempty"`
+    // MinCashUSD is the minimum USD cash that must remain after buys (TRADING_RESERVE).
+    MinCashUSD            *float64 `json:"minCashUsd,omitempty"`
+    // MinHoldings are per-symbol base-asset quantity floors that must remain after sells.
+    MinHoldings           []HoldingFloor `json:"minHoldings,omitempty"`
+}
+
+// HoldingFloor is a minimum quantity floor for one symbol.
+type HoldingFloor struct {
+    Symbol string  `json:"symbol"`
+    MinQty float64 `json:"minQty"`
+}
+
+// PortfolioSummaryLine is the compact portfolio snapshot embedded in EagerContext.
+type PortfolioSummaryLine struct {
+    NetLiquidation float64        `json:"netLiquidation"`
+    TotalCash      float64        `json:"totalCash"`
+    TopPositions   []PositionLine `json:"topPositions"`
+}
+
+// PositionLine is one holding in the compact portfolio summary.
+type PositionLine struct {
+    Symbol      string  `json:"symbol"`
+    MarketValue float64 `json:"marketValue"`
+    Quantity    float64 `json:"quantity"`
 }
 
 type Decision struct {
@@ -245,18 +285,14 @@ Owner: **SCH-AG1** | Consumer: The Agent (via `mcp-go` stdio session)
 | `get_market_candles` | `{ symbol, window: "1h"\|"24h"\|"7d"\|"30d" }` | up to **200** OHLCV points | `coinbase.Client.FetchProductCandles` |
 | `get_holdings` | `{}` | snapshot positions + summary + `stale` flag | `repo.LatestSnapshot` |
 | `get_position` | `{ symbol }` | one position w/ qty, avgCost, marketValue, unrealizedPL | `repo.LatestSnapshot` |
-| `get_recent_signals` | `{ symbol?, limit<=50, window<=72h }` | RecentAlert rows | `repo.ListRecentAlerts` |
-| `get_recent_decisions` | `{ symbol?, limit<=20, window<=72h }` | AgentDecision rows w/o full toolCalls | `repo.ListAgentDecisions` |
-| `get_decision_outcomes` | `{ symbol?, horizon: "24h"\|"7d"\|"14d", limit<=50 }` | scored outcomes (return %, excess vs BTC) | `repo.ListAgentDecisionOutcomes` |
+| `get_recent_signals` | `{ symbol?, limit<=50 (default 20), window<=72h (default 24h) }` | RecentAlert rows | `GET /internal/recent-alerts/list` |
+| `get_recent_decisions` | `{ symbol?, limit<=20 (default 10), window<=72h (default 24h) }` | AgentDecision rows w/o full toolCalls | `repo.ListAgentDecisions` |
+| `get_decision_outcomes` | `{ symbol?, horizon: "24h"\|"7d"\|"14d" (default 14d), limit<=50 (default 20) }` | scored outcomes (return %, excess vs BTC) | `repo.ListAgentDecisionOutcomes` |
 | `get_correlated_symbols` | `{ symbol }` | `[symbol, "BTC-USD", "ETH-USD", ...top3MV...]` (deduped) | pure derivation from snapshot |
 
 ### MCP response contracts
 
 All portfolio MCP tool responses share these rules.
-
-#### Correlation (MUST)
-
-Every request MUST supply `portfolioId`; v0 server default = env `PORTFOLIO_ID` or `"default"`. Every successful response MUST echo it back.
 
 #### Error envelope (MUST)
 
@@ -278,35 +314,21 @@ Standard codes:
 | `not_found` | No snapshot / symbol / policy exists |
 | `snapshot_stale` | Snapshot age exceeds staleness threshold |
 | `upstream_failure` | DB or broker call failed |
-| `unauthorized` | Caller not permitted for this `portfolioId` |
+| `unauthorized` | Caller not permitted |
 
 #### Freshness (holdings, MUST)
 
 Holdings responses MUST include:
 
-- `snapshotAge` — integer seconds since `takenAt` at read time
-- `stale` — boolean; `true` when `snapshotAge > INGEST_INTERVAL_SECONDS × 3`
+- `snapshotAgeSec` — integer seconds since `takenAt` at read time
+- `stale` — boolean; `true` when `snapshotAgeSec > INGEST_INTERVAL_SECONDS × 3`
 
 If `stale: true`, the agent SHOULD log a warning and may abort execution. The MCP server MUST NOT silently substitute live Coinbase data — surface staleness and let the agent decide.
 
 #### Response versioning (MUST)
 
 - Holdings tools: `"schemaVersion": "holdings_v1"` in every successful response
-- Policy tool: `"schemaVersion": "policy_v1"` in every successful response
 - Increment the version suffix on any breaking field change
-
-#### Policy provenance (SHOULD)
-
-`get_policy` responses SHOULD include:
-
-```json
-"provenance": {
-  "configHash": "sha256:<first-8-hex of sha256 of serialized TRADING_* block>",
-  "asOf": "<RFC3339 process startup time>"
-}
-```
-
-`asOf` = process startup time (env snapshot is immutable at runtime). Enables replay of "what policy was active when this trade happened."
 
 #### Units and normalization (MUST)
 
@@ -323,11 +345,11 @@ If `stale: true`, the agent SHOULD log a warning and may abort execution. The MC
 
 Holdings tools MUST cap responses at **200 positions**. v0 has no cursor; if the cap is hit, include `"truncated": true`. Homelab portfolios are expected well under this limit.
 
-### MCP trade tool: `place_trade`
+### `place_trade` (HTTP)
 
-Owner: **SCH-23 / SCH-24** | Consumer: OpenClaw agent | Gated by: `TRADING_ENABLED=true`
+Owner: **SCH-23 / SCH-24** | Consumer: The Agent (via `order_bridge.go`) | Gated by: `TRADING_ENABLED=true`
 
-This tool is the **agent-facing execution entry point**. It maps directly to `POST /mcp/v1/trades/create` on `portfolio-api` (internal network, `X-Internal-Key` auth). Policy runs synchronously inside the service before the order is persisted.
+This is an **HTTP endpoint**, not an MCP tool. The agent's `order_bridge.go` calls `POST /mcp/v1/trades/create` on `portfolio-api` directly (internal network, `X-Internal-Key` auth). Policy runs synchronously inside the service before the order is persisted.
 
 #### Request (`trade_request_v1`)
 
@@ -405,6 +427,7 @@ When policy blocks the order it is still persisted (audit trail) but `status = "
 | `global_max_exposure` | Open buy notional would exceed `TRADING_GLOBAL_MAX_EXPOSURE` |
 | `symbol_cooldown` | Recent open order for same symbol within `TRADING_SYMBOL_COOLDOWN` |
 | `no_shorting` | Sell quantity exceeds net long position |
+| `min_holding` | Sell would breach `TRADING_MIN_HOLDINGS` floor for this symbol |
 
 #### HTTP error codes
 
@@ -420,7 +443,7 @@ When policy blocks the order it is still persisted (audit trail) but `status = "
 
 #### Order lifecycle
 
-`new` → (`accept` / `reject`) → `accepted` / `rejected` → (`fill` / `cancel`) → `filled` / `canceled`
+`new` → (`accept` / `reject`) → `accepted` / `rejected` → (`fill` / `cancel` / `partial_fill`) → `filled` / `canceled` / `partially_filled`
 
 The trading-worker polls `accepted` orders and submits them to Coinbase; status transitions are written as immutable `OrderEvent` records.
 
@@ -434,21 +457,26 @@ The trading-worker polls `accepted` orders and submits them to Coinbase; status 
 | `AUTH_SECRET` | portfolio-api | SCH-18 |
 | `AUTH_USERNAME/PASSWORD` | portfolio-api | SCH-18 |
 | `INTERNAL_API_KEY` | portfolio-api, ingest | SCH-18, SCH-21 |
-| `DISCORD_WEBHOOK_URL` | signals | SCH-16 |
+| `DISCORD_WEBHOOK_URL` | portfolio-api | SCH-16 (trade outcome webhooks only; signals has no Discord code) |
 | `INGEST_INTERVAL` | ingest | SCH-21 |
 | `SIGNAL_RULES_PATH` | signals | SCH-16 |
 | `SIGNAL_COOLDOWN` | signals | SCH-16 |
-| `TRADING_ENABLED`, `TRADING_KILL_SWITCH`, `TRADING_MAX_NOTIONAL`, `TRADING_RESERVE`, `TRADING_GLOBAL_MAX_EXPOSURE`, `TRADING_SYMBOL_COOLDOWN`, `TRADING_ALLOWED_PROVIDERS`, `TRADING_ALLOWED_SYMBOLS`, `TRADING_DENIED_SYMBOLS` | portfolio-api, trading-worker | SCH-23 policy projection (`get_policy` v0) |
+| `TRADING_ENABLED`, `TRADING_KILL_SWITCH`, `TRADING_MAX_NOTIONAL`, `TRADING_RESERVE`, `TRADING_GLOBAL_MAX_EXPOSURE`, `TRADING_SYMBOL_COOLDOWN`, `TRADING_ALLOWED_PROVIDERS`, `TRADING_ALLOWED_SYMBOLS`, `TRADING_DENIED_SYMBOLS` | portfolio-api, trading-worker | SCH-23 |
+| `TRADING_MIN_HOLDINGS` | portfolio-api, signals (eager context) | SCH-23 (per-symbol sell floor) |
 | `NEXT_PUBLIC_API_URL` | web | SCH-17 |
-| `PORTFOLIO_ID` | portfolio-api, mcp/portfolio | SCH-23 (correlation; defaults to `"default"`) |
 | `AGENT_ENABLED` | signals | SCH-AG1 |
 | `AGENT_PROVIDER` | signals | SCH-AG1 |
 | `AGENT_MODEL` | signals | SCH-AG1 |
+| `AGENT_TRADE_ENABLED` | signals | SCH-AG1 (gate for order_bridge.go execution) |
+| `AGENT_MIN_TRADE_CONFIDENCE` | signals | SCH-AG1 (confidence threshold below which orders are skipped) |
+| `AGENT_DEFAULT_TRADE_NOTIONAL` | signals | SCH-AG1 (fallback notional when sizingHintNotional is nil) |
 | `ANTHROPIC_API_KEY` | signals | SCH-AG1 |
 | `AGENT_DAILY_COST_CAP_USD` | signals | SCH-AG1 |
 | `AGENT_DAILY_TIMER_UTC` | signals | SCH-AG1 |
 | `AGENT_CONCURRENCY` | signals | SCH-AG1 |
 | `AGENT_PROMPT_PATH` | signals | SCH-AG1 |
+| `MCP_SCHEMA_VERSION` | portfolio-api | SCH-23 (must be `"v1"` in place_trade requests) |
+| `COINBASE_TRADE_API_KEY` / `COINBASE_TRADE_API_SECRET` | trading-worker | SCH-24 (execution keys, separate from read keys) |
 | `LOG_LEVEL` | all Go services | P1 logging epic |
 | `APP_VERSION` | all Go services (optional) | P1 logging epic |
 
@@ -460,7 +488,11 @@ The trading-worker polls `accepted` orders and submits them to Coinbase; status 
 | `portfolio-api` | `portfolio-api` | 8080 |
 | `ingest` | `ingest` | — |
 | `signals` | `signals` | — |
-| `db` | `db` | 5432 |
+| `db` | `db` | 5432 ¹ |
+| `trading-worker` | `trading-worker` | — ² |
+
+¹ No host port in default compose; access via `docker compose exec db psql`.
+² Only active with `docker-compose.coinbase.yml` override (`TRADING_ENABLED=true`).
 
 ## Coding standards
 
@@ -470,7 +502,7 @@ The trading-worker polls `accepted` orders and submits them to Coinbase; status 
 - Interfaces defined by the consumer (except the shared `Broker`).
 - Error wrapping: `fmt.Errorf("context: %w", err)`.
 - Context propagation for all I/O.
-- Structured logging via `slog` (standard library) — use consistently across all services; shared root logger setup lives in `internal/logging` (see `.agent/epics/phase_1/logging/epic_P1_logging.md`).
+- Structured logging via `slog` (standard library) — use consistently across all services; shared root logger setup lives in `backend/internal/logging` (see `.agent/epics/phase_1/logging/epic_P1_logging.md`).
 
 ### TypeScript / Next.js
 

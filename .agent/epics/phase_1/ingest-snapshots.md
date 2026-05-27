@@ -1,5 +1,7 @@
 # SCH-21: Ingest, Snapshots & Session Gating
 
+> **Status: Implemented** — verified 2026-05
+
 > **Linear**: [SCH-21](https://linear.app/schtvr/issue/SCH-21/epic-p0-ingest-snapshots-and-session-gating)
 > **Milestone**: P0: MVP
 > **Wave**: 3 (depends on SCH-20 for Broker interface + SCH-18 for snapshot persistence)

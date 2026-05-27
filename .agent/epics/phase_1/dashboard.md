@@ -1,5 +1,7 @@
 # SCH-17: Dashboard (Stylekit, Auth, Positions Table)
 
+> **Status: Implemented** — verified 2026-05
+
 > **Linear**: [SCH-17](https://linear.app/schtvr/issue/SCH-17/epic-p0-dashboard-stylekit-auth-positions-table)
 > **Milestone**: P0: MVP
 > **Wave**: 2–3 (stylekit/shell can start with Wave 2; data integration needs SCH-18 API)

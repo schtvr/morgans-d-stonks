@@ -1,5 +1,7 @@
 # SCH-18: Portfolio Service (API, Persistence, Auth)
 
+> **Status: Implemented** — verified 2026-05
+
 > **Linear**: [SCH-18](https://linear.app/schtvr/issue/SCH-18/epic-p0-portfolio-service-api-persistence-auth)
 > **Milestone**: P0: MVP
 > **Wave**: 2 (depends on SCH-19 for repo layout; parallel with SCH-20)

@@ -1,5 +1,7 @@
 # SCH-20: Coinbase connectivity & domain model
 
+> **Status: Implemented** — verified 2026-05
+
 > **Linear**: [SCH-20](https://linear.app/schtvr/issue/SCH-20) (repurposed from equities gateway work)
 
 ## Goal
