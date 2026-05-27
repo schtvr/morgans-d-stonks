@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	anthropic "github.com/anthropics/anthropic-sdk-go"
@@ -47,10 +48,10 @@ func computeCostCents(model string, inputTokens, outputTokens int64) int64 {
 
 // decisionJSON is the strict subset we accept from the model.
 type decisionJSON struct {
-	Action             string   `json:"action"`
-	Confidence         float64  `json:"confidence"`
-	Rationale          string   `json:"rationale"`
-	SizingHintNotional *float64 `json:"sizingHintNotional"`
+	Action             string          `json:"action"`
+	Confidence         float64         `json:"confidence"`
+	Rationale          string          `json:"rationale"`
+	SizingHintNotional json.RawMessage `json:"sizingHintNotional"`
 }
 
 // AnthropicProvider runs the tool-use loop against the Anthropic API.
@@ -150,6 +151,20 @@ func (p *AnthropicProvider) Decide(ctx context.Context, req DecisionRequest) (*D
 					continue
 				}
 				tu := block.AsToolUse()
+
+				// record_decision is the decision output tool — parse and return.
+				if tu.Name == "record_decision" {
+					d, parseErr := parseDecisionJSON(string(tu.Input))
+					if parseErr != nil {
+						return nil, fmt.Errorf("anthropic: parse record_decision: %w", parseErr)
+					}
+					d.Model = p.model
+					d.ToolCalls = toolCalls
+					d.LatencyMS = time.Since(start).Milliseconds()
+					d.CostCents = computeCostCents(p.model, totalInputTokens, totalOutputTokens)
+					return d, nil
+				}
+
 				toolStart := time.Now()
 				output, callErr := p.mcpClient.CallTool(ctx, tu.Name, tu.Input)
 				durMS := time.Since(toolStart).Milliseconds()
@@ -179,45 +194,68 @@ func (p *AnthropicProvider) Decide(ctx context.Context, req DecisionRequest) (*D
 			continue
 		}
 
-		// StopReasonEndTurn or similar — expect a text block with the Decision JSON.
-		for _, block := range resp.Content {
-			if block.Type != "text" {
-				continue
+		// StopReasonEndTurn — model chose not to call record_decision.
+		// Try one forced final call requiring record_decision.
+		if resp.StopReason == anthropic.StopReasonEndTurn && i < maxIterations-1 {
+			messages = append(messages, anthropic.NewUserMessage(
+				anthropic.NewTextBlock("Now call record_decision with your final action."),
+			))
+			// Force record_decision on the next iteration via tool_choice below;
+			// rebuild with forced tool_choice in a targeted call.
+			forced, ferr := p.client.Messages.New(ctx, anthropic.MessageNewParams{
+				Model:     p.model,
+				MaxTokens: 512,
+				System:    []anthropic.TextBlockParam{{Text: systemPreamble}},
+				Messages:  messages,
+				Tools:     tools,
+				ToolChoice: anthropic.ToolChoiceParamOfTool("record_decision"),
+			})
+			if ferr != nil {
+				return nil, fmt.Errorf("anthropic: forced record_decision call: %w", ferr)
 			}
-			tb := block.AsText()
-			d, parseErr := parseDecisionJSON(tb.Text)
-			if parseErr != nil {
-				return nil, fmt.Errorf("anthropic: parse decision: %w", parseErr)
+			totalInputTokens += forced.Usage.InputTokens
+			totalOutputTokens += forced.Usage.OutputTokens
+			for _, block := range forced.Content {
+				if block.Type == "tool_use" {
+					tu := block.AsToolUse()
+					if tu.Name == "record_decision" {
+						d, parseErr := parseDecisionJSON(string(tu.Input))
+						if parseErr != nil {
+							return nil, fmt.Errorf("anthropic: parse forced record_decision: %w", parseErr)
+						}
+						d.Model = p.model
+						d.ToolCalls = toolCalls
+						d.LatencyMS = time.Since(start).Milliseconds()
+						d.CostCents = computeCostCents(p.model, totalInputTokens, totalOutputTokens)
+						return d, nil
+					}
+				}
 			}
-			d.Model = p.model
-			d.ToolCalls = toolCalls
-			d.LatencyMS = time.Since(start).Milliseconds()
-			d.CostCents = computeCostCents(p.model, totalInputTokens, totalOutputTokens)
-			return d, nil
 		}
 
-		// No text block found in a non-tool-use response — treat as an error.
-		return nil, fmt.Errorf("anthropic: response contained no text block (stop_reason=%s)", resp.StopReason)
+		// No decision extracted after all attempts.
+		return nil, fmt.Errorf("anthropic: no decision produced (stop_reason=%s)", resp.StopReason)
 	}
 
 	return nil, fmt.Errorf("anthropic: tool-use loop exhausted after %d iterations without a text response", maxIterations)
 }
 
-// buildSystemPrompt combines the loaded prompt body with a schema preamble.
+// buildSystemPrompt combines the loaded prompt body with output instructions.
 func (p *AnthropicProvider) buildSystemPrompt() string {
-	schema := `## Decision output schema (STRICT — return only this JSON, no markdown fences)
+	outputInstructions := `## How to submit your decision
 
-{
-  "action": "buy" | "sell" | "ignore",
-  "confidence": 0.0..1.0,
-  "rationale": "≤ 1000 chars; cite specific numbers from your tool calls",
-  "sizingHintNotional": <number in USD> | null,
-  "toolCalls": []
-}
+When you are ready to decide, call the **record_decision** tool with your final answer.
+Do NOT write prose text as your final response — always call record_decision.
+You may call any of the other tools first to gather data, then call record_decision last.
 
-Unknown fields will cause the decision to be rejected. The "toolCalls" field is managed by the system; set it to [].`
+Fields:
+- action: "buy", "sell", or "ignore"
+- confidence: float 0.0–1.0 (return "ignore" if < 0.55)
+- rationale: ≤1000 chars; cite specific numbers from tool calls
+- sizingHintNotional: USD notional suggestion (or omit / set null)
+- toolCalls: leave as []`
 
-	return p.prompt.Body + "\n\n" + schema
+	return p.prompt.Body + "\n\n" + outputInstructions
 }
 
 // buildUserMessage serializes the EagerContext and optional Signal into the
@@ -242,11 +280,12 @@ func (p *AnthropicProvider) buildUserMessage(req DecisionRequest) (string, error
 	return string(b), nil
 }
 
-// placeholderTools returns the tool definitions the agent may call via MCP.
-// The MCP client resolves them at dispatch time; the input schemas here are
-// intentionally permissive (freeform JSON object) — the MCP server validates.
+// placeholderTools returns the tool definitions the agent may call via MCP,
+// plus the special record_decision output tool.
+// MCP tools use a permissive schema; record_decision has a strict schema
+// so Claude knows exactly what fields to populate.
 func (p *AnthropicProvider) placeholderTools() []anthropic.ToolUnionParam {
-	names := []string{
+	mcpTools := []string{
 		"get_market_candles",
 		"get_holdings",
 		"get_position",
@@ -255,21 +294,64 @@ func (p *AnthropicProvider) placeholderTools() []anthropic.ToolUnionParam {
 		"get_recent_decisions",
 		"get_decision_outcomes",
 	}
-	tools := make([]anthropic.ToolUnionParam, 0, len(names))
-	for _, name := range names {
+	tools := make([]anthropic.ToolUnionParam, 0, len(mcpTools)+1)
+	for _, name := range mcpTools {
 		tools = append(tools, anthropic.ToolUnionParamOfTool(
 			anthropic.ToolInputSchemaParam{
-				Properties: map[string]interface{}{},
+				Properties: map[string]interface{}{
+					"params": map[string]interface{}{
+						"type":        "object",
+						"description": "Tool parameters (see tool description)",
+					},
+				},
 			},
 			name,
 		))
 	}
+
+	// record_decision is the structured output tool — Claude MUST call this
+	// to submit its final decision instead of returning prose text.
+	tools = append(tools, anthropic.ToolUnionParamOfTool(
+		anthropic.ToolInputSchemaParam{
+			Properties: map[string]interface{}{
+				"action": map[string]interface{}{
+					"type":        "string",
+					"enum":        []string{"buy", "sell", "ignore"},
+					"description": "The action to take",
+				},
+				"confidence": map[string]interface{}{
+					"type":        "number",
+					"description": "Confidence in the decision, 0.0–1.0",
+				},
+				"rationale": map[string]interface{}{
+					"type":        "string",
+					"description": "≤1000 chars; cite specific numbers from tool calls",
+				},
+				"sizingHintNotional": map[string]interface{}{
+					"type":        "number",
+					"description": "Suggested USD notional for the order, or null to ignore",
+				},
+				"toolCalls": map[string]interface{}{
+					"type":        "array",
+					"description": "Leave as empty array []",
+					"items":       map[string]interface{}{"type": "object"},
+				},
+			},
+		},
+		"record_decision",
+	))
 	return tools
 }
 
 // parseDecisionJSON strictly parses the model output into a Decision.
 // Unknown top-level fields cause rejection.
 func parseDecisionJSON(text string) (*Decision, error) {
+	// Extract first {...} block, tolerating any prose preamble.
+	if start := strings.Index(text, "{"); start != -1 {
+		if end := strings.LastIndex(text, "}"); end > start {
+			text = text[start : end+1]
+		}
+	}
 	// Strict decode: DisallowUnknownFields.
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(text), &raw); err != nil {
@@ -299,10 +381,38 @@ func parseDecisionJSON(text string) (*Decision, error) {
 		return nil, fmt.Errorf("confidence %v out of range [0, 1]", dj.Confidence)
 	}
 
+	sizing, err := parseSizingHintNotional(dj.SizingHintNotional)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Decision{
 		Action:             Action(dj.Action),
 		Confidence:         dj.Confidence,
 		Rationale:          dj.Rationale,
-		SizingHintNotional: dj.SizingHintNotional,
+		SizingHintNotional: sizing,
 	}, nil
+}
+
+// parseSizingHintNotional accepts null, number, or string from the model tool input.
+func parseSizingHintNotional(raw json.RawMessage) (*float64, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var f float64
+	if err := json.Unmarshal(raw, &f); err == nil {
+		return &f, nil
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		if s == "" || s == "null" {
+			return nil, nil
+		}
+		var parsed float64
+		if _, err := fmt.Sscanf(s, "%f", &parsed); err != nil {
+			return nil, fmt.Errorf("invalid sizingHintNotional %q", s)
+		}
+		return &parsed, nil
+	}
+	return nil, fmt.Errorf("invalid sizingHintNotional")
 }

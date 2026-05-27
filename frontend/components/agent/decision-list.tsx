@@ -2,6 +2,8 @@
 
 import type { AgentAction, AgentDecision, TriggerKind } from "@/lib/agent-api";
 import { useRouter } from "next/navigation";
+import { useCallback, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 function relativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -50,6 +52,65 @@ function ConfidenceBar({ value }: { value: number }) {
       </div>
       <span className="text-xs tabular-nums text-muted-foreground">{pct}%</span>
     </div>
+  );
+}
+
+const RATIONALE_CLAMP_CHARS = 100;
+
+function RationaleCell({ rationale }: { rationale: string }) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const truncated = rationale.length > RATIONALE_CLAMP_CHARS;
+  const preview =
+    truncated ? `${rationale.slice(0, RATIONALE_CLAMP_CHARS).trimEnd()}…` : rationale;
+
+  const showPreview = useCallback(() => {
+    if (!truncated || !anchorRef.current) return;
+    const rect = anchorRef.current.getBoundingClientRect();
+    const panelWidth = 384;
+    const margin = 8;
+    let left = rect.left;
+    if (left + panelWidth > window.innerWidth - margin) {
+      left = Math.max(margin, window.innerWidth - panelWidth - margin);
+    }
+    setPosition({ top: rect.bottom + margin, left });
+    setOpen(true);
+  }, [truncated]);
+
+  const hidePreview = useCallback(() => setOpen(false), []);
+
+  return (
+    <>
+      <span
+        ref={anchorRef}
+        className={`block max-w-[14rem] ${truncated ? "cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-2" : ""}`}
+        onMouseEnter={showPreview}
+        onMouseLeave={hidePreview}
+        onClick={(e) => e.stopPropagation()}
+        onFocus={showPreview}
+        onBlur={hidePreview}
+        tabIndex={truncated ? 0 : undefined}
+      >
+        {preview}
+      </span>
+      {open &&
+        position &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-label="Full rationale"
+            className="fixed z-50 max-h-64 w-96 overflow-y-auto rounded-lg border border-border bg-popover p-4 text-sm text-popover-foreground shadow-lg"
+            style={{ top: position.top, left: position.left }}
+            onMouseEnter={showPreview}
+            onMouseLeave={hidePreview}
+          >
+            <p className="whitespace-pre-wrap leading-relaxed">{rationale}</p>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -103,10 +164,8 @@ export function DecisionList({ decisions }: DecisionListProps) {
               <td className="whitespace-nowrap px-3 py-2.5">
                 <ConfidenceBar value={d.confidence} />
               </td>
-              <td className="max-w-xs px-3 py-2.5 text-muted-foreground">
-                <span title={d.rationale}>
-                  {d.rationale.length > 120 ? `${d.rationale.slice(0, 120)}…` : d.rationale}
-                </span>
+              <td className="max-w-[14rem] px-3 py-2.5 text-muted-foreground">
+                <RationaleCell rationale={d.rationale} />
               </td>
               <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-muted-foreground">
                 {d.model.split("-").slice(0, 3).join("-")}

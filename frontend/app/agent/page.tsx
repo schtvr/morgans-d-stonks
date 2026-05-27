@@ -26,14 +26,42 @@ export default function AgentPage() {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const [decisionsRes, benchmarkRes, costRes] = await Promise.all([
+      const [decisionsSettled, benchmarkSettled, costSettled] = await Promise.allSettled([
         fetchAgentDecisions({ limit: 50 }),
         fetchAgentBenchmark("14d"),
         fetchAgentCost("7d"),
       ]);
-      setDecisions(decisionsRes.decisions ?? []);
-      setBenchmark(benchmarkRes);
-      setCost(costRes);
+      const errors: string[] = [];
+      if (decisionsSettled.status === "fulfilled") {
+        setDecisions(decisionsSettled.value.decisions ?? []);
+      } else {
+        errors.push("decisions");
+      }
+      if (benchmarkSettled.status === "fulfilled") {
+        setBenchmark(benchmarkSettled.value);
+      } else {
+        errors.push("benchmark");
+      }
+      if (costSettled.status === "fulfilled") {
+        setCost(costSettled.value);
+      } else {
+        errors.push("cost");
+      }
+      if (errors.length > 0) {
+        const detail =
+          decisionsSettled.status === "rejected"
+            ? decisionsSettled.reason
+            : benchmarkSettled.status === "rejected"
+              ? benchmarkSettled.reason
+              : costSettled.status === "rejected"
+                ? costSettled.reason
+                : null;
+        const msg =
+          detail instanceof Error && detail.message
+            ? detail.message
+            : `Failed to load: ${errors.join(", ")}`;
+        setError(msg);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load agent data");
     } finally {

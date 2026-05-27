@@ -1,5 +1,13 @@
-# Backlog: optional Coinbase paper execution. Merge with base compose only when experimenting with orders.
+# Optional Coinbase paper execution. Merge with base compose to enable order execution.
 # docker compose -f docker-compose.yml -f docker-compose.coinbase.yml up -d --build
+#
+# This override:
+#   - Enables TRADING_ENABLED on portfolio-api and trading-worker
+#   - Adds the trading-worker service
+#   - Sets AGENT_TRADE_ENABLED=true on signals so agent decisions become orders
+#
+# Preflight: verify TRADING_ALLOWED_SYMBOLS, TRADING_MAX_NOTIONAL, AGENT_MIN_TRADE_CONFIDENCE
+# before starting. Keep TRADING_KILL_SWITCH=true until you are ready.
 
 services:
   portfolio-api:
@@ -14,6 +22,12 @@ services:
       TRADING_RESERVE: "0"
       TRADING_GLOBAL_MAX_EXPOSURE: "5000"
       TRADING_SYMBOL_COOLDOWN: 5m
+
+  signals:
+    environment:
+      AGENT_TRADE_ENABLED: "true"
+      AGENT_MIN_TRADE_CONFIDENCE: ${AGENT_MIN_TRADE_CONFIDENCE:-0.70}
+      AGENT_DEFAULT_TRADE_NOTIONAL: ${AGENT_DEFAULT_TRADE_NOTIONAL:-0}
 
   trading-worker:
     build:

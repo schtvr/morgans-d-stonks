@@ -31,12 +31,14 @@ var (
 	agentWorker        *agent.Worker
 	agentPromptVersion string
 	lastSnap           atomic.Pointer[portfolio.IngestSnapshotRequest]
+	portfolioFloors    config.Trading
 )
 
 func main() {
 	log := logging.New("signals")
 	cfg := config.LoadSignals()
 	brokerCfg := config.LoadBroker()
+	portfolioFloors = config.LoadTrading()
 
 	rules, err := sigpkg.LoadRulesFile(cfg.RulesPath)
 	if err != nil {
@@ -107,12 +109,15 @@ func main() {
 		costTracker := agent.NewCostTracker(costRepo, agentCfg.DailyCostCapCents)
 
 		agentWorker = agent.NewWorker(agent.WorkerConfig{
-			Provider:        provider,
-			Concurrency:     agentCfg.Concurrency,
-			CostTracker:     costTracker,
-			PortfolioAPIURL: agentCfg.PortfolioAPIURL,
-			InternalAPIKey:  agentCfg.InternalAPIKey,
-			Log:             log,
+			Provider:             provider,
+			Concurrency:          agentCfg.Concurrency,
+			CostTracker:          costTracker,
+			PortfolioAPIURL:      agentCfg.PortfolioAPIURL,
+			InternalAPIKey:       agentCfg.InternalAPIKey,
+			Log:                  log,
+			TradeEnabled:         agentCfg.TradeEnabled,
+			MinTradeConfidence:   agentCfg.MinTradeConfidence,
+			DefaultTradeNotional: agentCfg.DefaultTradeNotional,
 		})
 		agentWorker.Start(ctx)
 		defer agentWorker.Stop()
@@ -126,6 +131,9 @@ func main() {
 			"prompt_version", agentPromptVersion,
 			"concurrency", agentCfg.Concurrency,
 			"daily_timer_utc", agentCfg.DailyTimerUTC,
+			"trade_enabled", agentCfg.TradeEnabled,
+			"min_trade_confidence", agentCfg.MinTradeConfidence,
+			"default_trade_notional", agentCfg.DefaultTradeNotional,
 		)
 	}
 

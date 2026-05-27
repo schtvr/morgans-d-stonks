@@ -289,6 +289,9 @@ func (a *app) handleAgentBenchmark(w http.ResponseWriter, r *http.Request) {
 
 	points, err := a.repo.ListBenchmarkDaily(r.Context(), "14d", days)
 	if err != nil {
+		if a.log != nil {
+			a.log.Error("agent benchmark daily", "err", err)
+		}
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
@@ -329,12 +332,18 @@ func (a *app) handleAgentCost(w http.ResponseWriter, r *http.Request) {
 
 	points, err := a.repo.ListAgentCostDaily(r.Context(), days)
 	if err != nil {
+		if a.log != nil {
+			a.log.Error("agent cost daily", "err", err)
+		}
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 
 	todayCents, err := a.repo.SumCostCentsForDay(r.Context(), time.Now().UTC())
 	if err != nil {
+		if a.log != nil {
+			a.log.Error("agent cost today", "err", err)
+		}
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}

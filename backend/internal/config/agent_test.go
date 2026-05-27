@@ -10,8 +10,8 @@ func TestLoadAgent_Defaults(t *testing.T) {
 	if a.Provider != "mock" {
 		t.Errorf("expected default provider mock, got %q", a.Provider)
 	}
-	if a.Model != "claude-sonnet-4-5" {
-		t.Errorf("expected default model claude-sonnet-4-5, got %q", a.Model)
+	if a.Model != "claude-haiku-4-5" {
+		t.Errorf("expected default model claude-haiku-4-5, got %q", a.Model)
 	}
 	if a.DailyCostCapCents != 500 {
 		t.Errorf("expected default cap 500 cents (=$5), got %d", a.DailyCostCapCents)

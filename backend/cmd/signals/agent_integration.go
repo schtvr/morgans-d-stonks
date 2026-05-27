@@ -50,6 +50,22 @@ func buildEagerContext(snap *portfolio.IngestSnapshotRequest, symbol string, dec
 	if symbol != "" && symbol != sigpkg.PortfolioRuleSymbol {
 		ec.DecisionsForSymbol24h = decisionsCount
 	}
+	if portfolioFloors.Reserve > 0 {
+		reserve := portfolioFloors.Reserve
+		ec.MinCashUSD = &reserve
+	}
+	if len(portfolioFloors.MinHoldings) > 0 {
+		syms := make([]string, 0, len(portfolioFloors.MinHoldings))
+		for sym := range portfolioFloors.MinHoldings {
+			syms = append(syms, sym)
+		}
+		sort.Strings(syms)
+		floors := make([]agent.HoldingFloor, 0, len(syms))
+		for _, sym := range syms {
+			floors = append(floors, agent.HoldingFloor{Symbol: sym, MinQty: portfolioFloors.MinHoldings[sym]})
+		}
+		ec.MinHoldings = floors
+	}
 	return ec
 }
 

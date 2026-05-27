@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -18,6 +19,8 @@ type Trading struct {
 	DeniedSymbols     []string
 	SymbolCooldown    time.Duration
 	GlobalMaxExposure float64
+	// MinHoldings maps symbol (e.g. BTC-USD) to minimum base-asset quantity that must remain after sells.
+	MinHoldings map[string]float64
 }
 
 // LoadTrading loads trading rollout config from the environment.
@@ -32,7 +35,29 @@ func LoadTrading() Trading {
 		DeniedSymbols:     getenvCSVList("TRADING_DENIED_SYMBOLS", ""),
 		SymbolCooldown:    getenvDuration("TRADING_SYMBOL_COOLDOWN", 0),
 		GlobalMaxExposure: getenvFloat("TRADING_GLOBAL_MAX_EXPOSURE", 0),
+		MinHoldings:       parseMinHoldings(getenv("TRADING_MIN_HOLDINGS", "")),
 	}
+}
+
+// parseMinHoldings parses TRADING_MIN_HOLDINGS entries like "BTC-USD:0.0075,SOL-USD:4".
+func parseMinHoldings(raw string) map[string]float64 {
+	out := make(map[string]float64)
+	for _, pair := range splitCSV(raw) {
+		sym, qty, ok := strings.Cut(pair, ":")
+		if !ok {
+			continue
+		}
+		sym = strings.ToUpper(strings.TrimSpace(sym))
+		if sym == "" {
+			continue
+		}
+		v, err := strconv.ParseFloat(strings.TrimSpace(qty), 64)
+		if err != nil || v <= 0 {
+			continue
+		}
+		out[sym] = v
+	}
+	return out
 }
 
 // Validate returns an error for unsafe trading combinations.

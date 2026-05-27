@@ -40,6 +40,16 @@ type EagerContext struct {
 	// DecisionsForSymbol24h is nil for daily triggers (no symbol); count of prior
 	// decisions on this symbol in the last 24h for signal triggers.
 	DecisionsForSymbol24h *int `json:"decisionsForSymbol24h,omitempty"`
+	// MinCashUSD is the minimum USD cash that must remain after buys (TRADING_RESERVE).
+	MinCashUSD *float64 `json:"minCashUsd,omitempty"`
+	// MinHoldings are per-symbol base-asset quantity floors that must remain after sells.
+	MinHoldings []HoldingFloor `json:"minHoldings,omitempty"`
+}
+
+// HoldingFloor is a minimum quantity floor for one symbol.
+type HoldingFloor struct {
+	Symbol string  `json:"symbol"`
+	MinQty float64 `json:"minQty"`
 }
 
 // PortfolioSummaryLine is the compact portfolio snapshot embedded in EagerContext.

@@ -20,6 +20,12 @@ type WorkerConfig struct {
 	PortfolioAPIURL string
 	InternalAPIKey  string
 	Log             *slog.Logger
+
+	// Trade execution — only active when TradeEnabled=true.
+	// All other Trade* fields are ignored when TradeEnabled=false.
+	TradeEnabled         bool
+	MinTradeConfidence   float64 // minimum confidence to submit; defaults to 0.70
+	DefaultTradeNotional float64 // USD fallback when agent omits sizingHintNotional; 0 = skip
 }
 
 // Worker is a bounded goroutine pool that consumes DecisionRequests, calls the
@@ -100,7 +106,7 @@ func (w *Worker) process(ctx context.Context, req DecisionRequest) {
 		}
 		w.cfg.Log.Warn("agent_worker: cost cap reached, emitting synthetic ignore",
 			"idempotency_key", req.IdempotencyKey)
-		w.post(ctx, req, synthetic)
+		w.post(ctx, req, synthetic) // synthetic ignore — no order submission
 		return
 	}
 
@@ -116,8 +122,13 @@ func (w *Worker) process(ctx context.Context, req DecisionRequest) {
 		return
 	}
 
-	// 3. POST to portfolio-api.
-	w.post(ctx, req, decision)
+	// 3. POST decision to portfolio-api for persistence + scoring.
+	posted := w.post(ctx, req, decision)
+
+	// 4. Submit order when execution is enabled and decision persisted.
+	if posted {
+		w.maybeSubmitOrder(ctx, req, decision)
+	}
 }
 
 // mutexFor returns (creating if necessary) the per-symbol mutex for a request.
@@ -136,18 +147,19 @@ type decisionPostBody struct {
 	Decision *Decision       `json:"decision"`
 }
 
-func (w *Worker) post(ctx context.Context, req DecisionRequest, decision *Decision) {
+// post persists the decision to portfolio-api and returns true on success.
+func (w *Worker) post(ctx context.Context, req DecisionRequest, decision *Decision) bool {
 	body, err := json.Marshal(decisionPostBody{Request: req, Decision: decision})
 	if err != nil {
 		w.cfg.Log.Error("agent_worker: marshal post body", "err", err)
-		return
+		return false
 	}
 
 	url := strings.TrimRight(w.cfg.PortfolioAPIURL, "/") + "/internal/agent-decisions"
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		w.cfg.Log.Error("agent_worker: build request", "err", err)
-		return
+		return false
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("X-Internal-Key", w.cfg.InternalAPIKey)
@@ -155,7 +167,7 @@ func (w *Worker) post(ctx context.Context, req DecisionRequest, decision *Decisi
 	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
 		w.cfg.Log.Error("agent_worker: post decision", "err", err)
-		return
+		return false
 	}
 	defer resp.Body.Close()
 
@@ -163,7 +175,7 @@ func (w *Worker) post(ctx context.Context, req DecisionRequest, decision *Decisi
 		w.cfg.Log.Warn("agent_worker: unexpected status posting decision",
 			"status", resp.StatusCode,
 			"idempotency_key", req.IdempotencyKey)
-		return
+		return false
 	}
 
 	w.cfg.Log.Info("agent_worker: decision posted",
@@ -177,6 +189,7 @@ func (w *Worker) post(ctx context.Context, req DecisionRequest, decision *Decisi
 	if err := validateProviderDecision(decision); err != nil {
 		w.cfg.Log.Warn("agent_worker: decision validation warning", "err", err)
 	}
+	return true
 }
 
 func validateProviderDecision(d *Decision) error {
