@@ -36,7 +36,10 @@ func NewExecution(cfg broker.Config) (broker.ExecutionBroker, error) {
 		if cfg.Environment == "paper" || cfg.Environment == "" {
 			return coinbase.NewPaperExecution(), nil
 		}
-		return nil, fmt.Errorf("brokerwire: coinbase live execution is not enabled")
+		if cfg.CoinbaseTradeAPIKey == "" || cfg.CoinbaseTradeAPISecret == "" {
+			return nil, fmt.Errorf("brokerwire: COINBASE_TRADE_API_KEY and COINBASE_TRADE_API_SECRET are required for live execution")
+		}
+		return coinbase.NewLiveExecution(nil, "", cfg.CoinbaseTradeAPIKey, cfg.CoinbaseTradeAPISecret), nil
 	case "mock":
 		return nil, fmt.Errorf("brokerwire: mock broker does not support execution")
 	default:

@@ -38,6 +38,11 @@ func (c Broker) Validate() error {
 		if strings.TrimSpace(c.CoinbaseReadAPIKey) == "" || strings.TrimSpace(c.CoinbaseReadAPISecret) == "" {
 			return fmt.Errorf("COINBASE_READ_API_KEY and COINBASE_READ_API_SECRET are required for provider=coinbase")
 		}
+		if strings.ToLower(strings.TrimSpace(c.Env)) == "live" {
+			if strings.TrimSpace(c.CoinbaseTradeAPIKey) == "" || strings.TrimSpace(c.CoinbaseTradeAPISecret) == "" {
+				return fmt.Errorf("COINBASE_TRADE_API_KEY and COINBASE_TRADE_API_SECRET are required when BROKER_ENV=live")
+			}
+		}
 	default:
 		return fmt.Errorf("unknown BROKER_PROVIDER %q", c.Provider)
 	}
@@ -46,9 +51,11 @@ func (c Broker) Validate() error {
 
 func (c Broker) ToLegacyBrokerConfig() broker.Config {
 	return broker.Config{
-		Provider:          strings.ToLower(c.Provider),
-		Environment:       strings.ToLower(c.Env),
-		CoinbaseAPIKey:    strings.TrimSpace(c.CoinbaseReadAPIKey),
-		CoinbaseAPISecret: strings.TrimSpace(c.CoinbaseReadAPISecret),
+		Provider:               strings.ToLower(c.Provider),
+		Environment:            strings.ToLower(c.Env),
+		CoinbaseAPIKey:         strings.TrimSpace(c.CoinbaseReadAPIKey),
+		CoinbaseAPISecret:      strings.TrimSpace(c.CoinbaseReadAPISecret),
+		CoinbaseTradeAPIKey:    strings.TrimSpace(c.CoinbaseTradeAPIKey),
+		CoinbaseTradeAPISecret: strings.TrimSpace(c.CoinbaseTradeAPISecret),
 	}
 }

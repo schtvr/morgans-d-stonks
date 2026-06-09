@@ -37,6 +37,8 @@ services:
       HTTP_ADDR: :8080
       # Origins allowed for browser requests (add http://<LAN-IP>:3000 for other devices on your network).
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      # Optional: trade outcome webhook (accepted/rejected at order create time).
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
     networks:
       - portfolio-net
     depends_on:

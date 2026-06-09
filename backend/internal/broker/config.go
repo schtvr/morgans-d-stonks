@@ -11,6 +11,9 @@ type Config struct {
 	Environment       string // paper | live
 	CoinbaseAPIKey    string
 	CoinbaseAPISecret string
+	// Trade-scoped credentials (separate key with order:write permission).
+	CoinbaseTradeAPIKey    string
+	CoinbaseTradeAPISecret string
 }
 
 // LoadConfigFromEnv reads BROKER_* and Coinbase CDP variables (legacy helper).

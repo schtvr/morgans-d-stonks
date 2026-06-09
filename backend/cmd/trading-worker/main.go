@@ -9,6 +9,7 @@ import (
 
 	"github.com/schtvr/morgans-d-stonks/internal/brokerwire"
 	"github.com/schtvr/morgans-d-stonks/internal/config"
+	"github.com/schtvr/morgans-d-stonks/internal/discord"
 	"github.com/schtvr/morgans-d-stonks/internal/logging"
 	"github.com/schtvr/morgans-d-stonks/internal/trading"
 	tradepg "github.com/schtvr/morgans-d-stonks/internal/trading/postgres"
@@ -44,9 +45,22 @@ func main() {
 	if tradingCfg.Enabled {
 		if e, err := brokerwire.NewExecution(brokerCfg.ToLegacyBrokerConfig()); err == nil {
 			exec = e
+			log.Info("execution broker ready", "provider", brokerCfg.Provider, "env", brokerCfg.Env)
 		} else {
 			log.Warn("execution broker unavailable", "err", err)
 		}
+	}
+
+	// Wire Discord notifications for fills and rejected/cancelled outcomes.
+	var notifyFn func(ctx context.Context, msg string)
+	if webhookURL := getenv("DISCORD_WEBHOOK_URL", ""); webhookURL != "" {
+		dc := discord.NewClient(webhookURL)
+		notifyFn = func(ctx context.Context, msg string) {
+			if err := dc.SendMessage(ctx, msg); err != nil {
+				log.Warn("discord notify", "err", err)
+			}
+		}
+		log.Info("discord notifications enabled")
 	}
 
 	worker := &trading.Worker{
@@ -55,6 +69,7 @@ func main() {
 		Interval: getenvDuration("TRADING_INTERVAL", 30*time.Second),
 		Metrics:  &trading.Metrics{},
 		Log:      log,
+		Notify:   notifyFn,
 	}
 	if err := worker.Run(ctx); err != nil && err != context.Canceled {
 		log.Error("worker", "err", err)
