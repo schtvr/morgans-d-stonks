@@ -1,5 +1,7 @@
 # SCH-21: Ingest, Snapshots & Session Gating
 
+> **Status: Implemented** — verified 2026-05
+
 > **Linear**: [SCH-21](https://linear.app/schtvr/issue/SCH-21/epic-p0-ingest-snapshots-and-session-gating)
 > **Milestone**: P0: MVP
 > **Wave**: 3 (depends on SCH-20 for Broker interface + SCH-18 for snapshot persistence)
@@ -7,7 +9,7 @@
 
 ## Objective
 
-Build a periodic job that pulls portfolio/market state from IBKR every ~10 minutes during active equity sessions, then persists snapshots via the portfolio service for downstream signals and the dashboard.
+Build a periodic job that pulls portfolio/market state from **Coinbase** (or `BROKER_PROVIDER=mock` in tests) on a configurable interval, then persists snapshots via the portfolio service for downstream signals and the dashboard.
 
 ## Scope
 
@@ -27,7 +29,7 @@ Build a periodic job that pulls portfolio/market state from IBKR every ~10 minut
 
 ```env
 INGEST_INTERVAL=10m           # ticker interval
-IBKR_MODE=paper               # passed to broker factory
+BROKER_PROVIDER=coinbase        # or mock for tests
 PORTFOLIO_API_URL=http://portfolio-api:8080
 INTERNAL_API_KEY=changeme     # shared secret for internal endpoint
 ```
@@ -35,9 +37,9 @@ INTERNAL_API_KEY=changeme     # shared secret for internal endpoint
 ### Session gating
 
 - Use the `Broker.IsMarketOpen()` method (implemented in SCH-20).
-- Do NOT hard-code ET market hours. Trust IBKR's session flags.
+- Do NOT hard-code exchange session calendars in ingest. Prefer `broker.IsMarketOpen()` / broker semantics from SCH-20.
 - When the market is closed, log at `INFO` level and sleep until next tick.
-- On IBKR connectivity errors during the session check, log at `WARN` and retry on the next tick (do not crash).
+- On Coinbase or broker connectivity errors during a tick, log at `WARN` and retry on the next tick (do not crash).
 
 ### Snapshot payload
 
@@ -65,7 +67,7 @@ Build from broker domain types (defined in SCH-20):
 ### Compose wiring
 
 - Service `ingest` in `docker-compose.yml` (provided by SCH-19).
-- Depends on: `portfolio-api`, `ib-gateway` (or mock).
+- Depends on: `portfolio-api`, broker credentials (or mock).
 - Restart policy: `unless-stopped` (so it recovers from transient failures).
 
 ## Do NOT
@@ -82,7 +84,7 @@ Build from broker domain types (defined in SCH-20):
 - [ ] Interval is configurable via `INGEST_INTERVAL` env var.
 - [ ] Graceful shutdown on SIGINT (no partial writes).
 - [ ] Errors are logged without crashing the process.
-- [ ] Works end-to-end in Docker Compose with `IBKR_MODE=mock`.
+- [ ] Works end-to-end in Docker Compose with `BROKER_PROVIDER=mock` or real Coinbase read keys.
 
 ## Shared contracts
 

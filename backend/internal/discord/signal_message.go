@@ -20,20 +20,25 @@ func SignalWebhookContent(mention, symbol, ruleName string) string {
 }
 
 // CryptoAlertWebhookContent builds a short human summary plus a fenced JSON block for OpenClaw/Discord.
-func CryptoAlertWebhookContent(payload signal.CryptoAlert) (string, error) {
+// mention is optional raw Discord mention text (e.g. "<@botUserId>"); when non-empty it is prepended so the bot is pinged.
+func CryptoAlertWebhookContent(mention string, payload signal.CryptoAlert) (string, error) {
 	b, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
 	}
 	summary := fmt.Sprintf(
-		"%s %s price=%.8g delta=%.4g%% threshold=%.4g%%",
-		payload.Type,
+		"### %s\n**price:** %.8g   |    **delta:** %.2f%%   |   **threshold:** %.2f%%",
 		payload.Symbol,
 		payload.CurrentPrice,
 		payload.DeltaPct,
 		payload.ThresholdPct,
 	)
 	var sb strings.Builder
+	mention = strings.TrimSpace(mention)
+	if mention != "" {
+		sb.WriteString(mention)
+		sb.WriteString(" ")
+	}
 	sb.WriteString(summary)
 	sb.WriteString("\n```json\n")
 	sb.Write(b)

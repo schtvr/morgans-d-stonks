@@ -62,8 +62,8 @@ func (a *app) handleAlertSettingsGet(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			writeJSON(w, http.StatusOK, portfolio.SignalSettings{
-				MoveThresholdPct: 1.0,
-				Cooldown:         "15m",
+				MoveThresholdPct: 2.5,
+				Cooldown:         "1h",
 				UpdatedAt:        time.Now().UTC(),
 			})
 			return

@@ -14,8 +14,9 @@ type Metrics struct {
 	orderRejectsTotal     uint64
 	placementCount        uint64
 	placementLatencyTotal time.Duration
-	reconLagCount         uint64
-	reconLagTotal         time.Duration
+	reconLagCount              uint64
+	reconLagTotal              time.Duration
+	liveReconciliationErrors   uint64
 }
 
 // IncOrderCreate increments the order create counter.
@@ -48,6 +49,13 @@ func (m *Metrics) ObserveReconciliationLag(d time.Duration) {
 	m.reconLagTotal += d
 }
 
+// IncLiveReconciliationError increments failed live provider poll attempts.
+func (m *Metrics) IncLiveReconciliationError() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.liveReconciliationErrors++
+}
+
 // ServeHTTP emits a Prometheus-compatible text snapshot.
 func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = r
@@ -62,4 +70,6 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(w, "# TYPE trading_placement_latency_seconds summary\ntrading_placement_latency_seconds_sum %.6f\ntrading_placement_latency_seconds_count %d\n", m.placementLatencyTotal.Seconds(), m.placementCount)
 	_, _ = fmt.Fprintf(w, "# HELP trading_reconciliation_lag_seconds Reconciliation lag for open orders.\n")
 	_, _ = fmt.Fprintf(w, "# TYPE trading_reconciliation_lag_seconds summary\ntrading_reconciliation_lag_seconds_sum %.6f\ntrading_reconciliation_lag_seconds_count %d\n", m.reconLagTotal.Seconds(), m.reconLagCount)
+	_, _ = fmt.Fprintf(w, "# HELP trading_live_reconciliation_errors_total Failed provider order polls during live reconciliation.\n")
+	_, _ = fmt.Fprintf(w, "# TYPE trading_live_reconciliation_errors_total counter\ntrading_live_reconciliation_errors_total %d\n", m.liveReconciliationErrors)
 }

@@ -1,4 +1,4 @@
-/** HttpOnly session is set by portfolio-api; this flag only drives middleware (non-secret). */
+/** HttpOnly session is set by portfolio-api; this flag only drives the Next.js proxy (non-secret). */
 const SESSION_FLAG = "session_ok";
 
 export function markSessionPresent() {

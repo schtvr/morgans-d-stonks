@@ -239,6 +239,81 @@ LIMIT $1`
 	return out, rows.Err()
 }
 
+// ListRecentAlertsFiltered returns alerts with optional symbol and since filters.
+// limit is clamped to [1, 50]; empty symbol means all symbols.
+func (r *Repository) ListRecentAlertsFiltered(ctx context.Context, symbol string, since time.Time, limit int) ([]portfolio.RecentAlert, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	scanAlerts := func(rows interface {
+		Next() bool
+		Close()
+		Err() error
+		Scan(dest ...any) error
+	}) ([]portfolio.RecentAlert, error) {
+		defer rows.Close()
+		out := make([]portfolio.RecentAlert, 0, limit)
+		for rows.Next() {
+			var item portfolio.RecentAlert
+			if err := rows.Scan(
+				&item.ID,
+				&item.Type,
+				&item.Symbol,
+				&item.ProductID,
+				&item.Source,
+				&item.CurrentPrice,
+				&item.PreviousPrice,
+				&item.DeltaAmount,
+				&item.DeltaPct,
+				&item.ThresholdPct,
+				&item.Quantity,
+				&item.AvgCost,
+				&item.CostBasis,
+				&item.UnrealizedPL,
+				&item.UnrealizedPLPct,
+				&item.FiredAt,
+				&item.CreatedAt,
+				&item.PayloadJSON,
+			); err != nil {
+				return nil, err
+			}
+			out = append(out, item)
+		}
+		return out, rows.Err()
+	}
+
+	const cols = `
+SELECT id, type, symbol, product_id, source, current_price, previous_price, delta_amount, delta_pct, threshold_pct,
+       quantity, avg_cost, cost_basis, unrealized_pl, unrealized_pl_pct, fired_at, created_at, payload_json
+FROM recent_alerts`
+
+	if symbol != "" {
+		const q = cols + `
+WHERE fired_at >= $1 AND symbol = $2
+ORDER BY fired_at DESC, id DESC
+LIMIT $3`
+		rows, err := r.pool.Query(ctx, q, since, symbol, limit)
+		if err != nil {
+			return nil, err
+		}
+		return scanAlerts(rows)
+	}
+
+	const q = cols + `
+WHERE fired_at >= $1
+ORDER BY fired_at DESC, id DESC
+LIMIT $2`
+	rows, err := r.pool.Query(ctx, q, since, limit)
+	if err != nil {
+		return nil, err
+	}
+	return scanAlerts(rows)
+}
+
 // InsertRecentAlert stores a fired alert for dashboard history.
 func (r *Repository) InsertRecentAlert(ctx context.Context, alert portfolio.RecentAlert) error {
 	const q = `
@@ -715,6 +790,404 @@ func (r *Repository) DeleteSession(ctx context.Context, token string) error {
 	const q = `DELETE FROM sessions WHERE token = $1`
 	_, err := r.pool.Exec(ctx, q, token)
 	return err
+}
+
+// InsertAgentDecision persists a new decision. On duplicate idempotency_key the
+// existing row is returned without error — callers must not treat a duplicate as a
+// failure.
+func (r *Repository) InsertAgentDecision(ctx context.Context, d portfolio.AgentDecision) (*portfolio.AgentDecision, error) {
+	const q = `
+INSERT INTO agent_decisions (
+    trigger_kind, trigger_at, idempotency_key, symbol, signal_event_id, action,
+    confidence, rationale, sizing_hint_notional, model, prompt_version,
+    latency_ms, cost_cents, request_json, response_json, tool_calls_json
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16::jsonb)
+ON CONFLICT (idempotency_key) DO NOTHING
+RETURNING id, trigger_kind, trigger_at, idempotency_key, symbol, signal_event_id, action,
+          confidence, rationale, sizing_hint_notional, model, prompt_version,
+          latency_ms, cost_cents, request_json, response_json, tool_calls_json, created_at`
+	row := r.pool.QueryRow(ctx, q,
+		d.TriggerKind,
+		d.TriggerAt,
+		d.IdempotencyKey,
+		d.Symbol,
+		d.SignalEventID,
+		d.Action,
+		d.Confidence,
+		d.Rationale,
+		d.SizingHintNotional,
+		d.Model,
+		d.PromptVersion,
+		d.LatencyMS,
+		d.CostCents,
+		jsonOrEmpty(d.RequestJSON),
+		jsonOrEmpty(d.ResponseJSON),
+		jsonOrEmptyArray(d.ToolCallsJSON),
+	)
+	out, err := scanAgentDecision(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Duplicate idempotency key — fetch and return the existing row.
+			return r.GetAgentDecisionByIdempotencyKey(ctx, d.IdempotencyKey)
+		}
+		return nil, fmt.Errorf("InsertAgentDecision: %w", err)
+	}
+	return out, nil
+}
+
+// GetAgentDecision returns one agent decision by primary key.
+func (r *Repository) GetAgentDecision(ctx context.Context, id int64) (*portfolio.AgentDecision, error) {
+	const q = `
+SELECT id, trigger_kind, trigger_at, idempotency_key, symbol, signal_event_id, action,
+       confidence, rationale, sizing_hint_notional, model, prompt_version,
+       latency_ms, cost_cents, request_json, response_json, tool_calls_json, created_at
+FROM agent_decisions
+WHERE id = $1`
+	out, err := scanAgentDecision(r.pool.QueryRow(ctx, q, id))
+	if err != nil {
+		return nil, fmt.Errorf("GetAgentDecision id=%d: %w", id, err)
+	}
+	return out, nil
+}
+
+// GetAgentDecisionByIdempotencyKey returns one agent decision by idempotency key.
+func (r *Repository) GetAgentDecisionByIdempotencyKey(ctx context.Context, key string) (*portfolio.AgentDecision, error) {
+	const q = `
+SELECT id, trigger_kind, trigger_at, idempotency_key, symbol, signal_event_id, action,
+       confidence, rationale, sizing_hint_notional, model, prompt_version,
+       latency_ms, cost_cents, request_json, response_json, tool_calls_json, created_at
+FROM agent_decisions
+WHERE idempotency_key = $1`
+	out, err := scanAgentDecision(r.pool.QueryRow(ctx, q, key))
+	if err != nil {
+		return nil, fmt.Errorf("GetAgentDecisionByIdempotencyKey: %w", err)
+	}
+	return out, nil
+}
+
+// ListAgentDecisions returns decisions matching the filter, newest first.
+func (r *Repository) ListAgentDecisions(ctx context.Context, filter portfolio.AgentDecisionFilter) ([]portfolio.AgentDecision, error) {
+	limit := clampLimit(filter.Limit, 50, 200)
+	const q = `
+SELECT id, trigger_kind, trigger_at, idempotency_key, symbol, signal_event_id, action,
+       confidence, rationale, sizing_hint_notional, model, prompt_version,
+       latency_ms, cost_cents, request_json, response_json, tool_calls_json, created_at
+FROM agent_decisions
+WHERE ($2 = '' OR symbol = $2)
+  AND ($3 = '' OR action = $3)
+  AND ($4::timestamptz IS NULL OR trigger_at >= $4)
+  AND ($5::timestamptz IS NULL OR trigger_at <= $5)
+ORDER BY trigger_at DESC, id DESC
+LIMIT $1`
+	rows, err := r.pool.Query(ctx, q, limit,
+		strings.TrimSpace(filter.Symbol),
+		strings.TrimSpace(filter.Action),
+		filter.From,
+		filter.To,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("ListAgentDecisions: %w", err)
+	}
+	defer rows.Close()
+	out := make([]portfolio.AgentDecision, 0, limit)
+	for rows.Next() {
+		item, err := scanAgentDecision(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *item)
+	}
+	return out, rows.Err()
+}
+
+// CountDecisionsForSymbolSince returns the number of decisions for a symbol since a given time.
+func (r *Repository) CountDecisionsForSymbolSince(ctx context.Context, symbol string, since time.Time) (int, error) {
+	const q = `SELECT COUNT(*) FROM agent_decisions WHERE symbol = $1 AND trigger_at >= $2`
+	var n int
+	if err := r.pool.QueryRow(ctx, q, symbol, since).Scan(&n); err != nil {
+		return 0, fmt.Errorf("CountDecisionsForSymbolSince: %w", err)
+	}
+	return n, nil
+}
+
+// SumCostCentsForDay returns the total agent cost in cents for the given calendar day (UTC).
+func (r *Repository) SumCostCentsForDay(ctx context.Context, day time.Time) (int64, error) {
+	const q = `
+SELECT COALESCE(SUM(cost_cents), 0)
+FROM agent_decisions
+WHERE (trigger_at AT TIME ZONE 'UTC')::date = ($1 AT TIME ZONE 'UTC')::date`
+	var total int64
+	if err := r.pool.QueryRow(ctx, q, day).Scan(&total); err != nil {
+		return 0, fmt.Errorf("SumCostCentsForDay: %w", err)
+	}
+	return total, nil
+}
+
+// ListAgentCostDaily returns per-day cost aggregates for the last N days, newest first.
+func (r *Repository) ListAgentCostDaily(ctx context.Context, days int) ([]portfolio.AgentCostPoint, error) {
+	if days <= 0 {
+		days = 7
+	}
+	if days > 90 {
+		days = 90
+	}
+	const q = `
+SELECT (trigger_at AT TIME ZONE 'UTC')::date::text AS day,
+       COALESCE(SUM(cost_cents), 0)::bigint AS cost_cents,
+       COUNT(*)::int AS decisions
+FROM agent_decisions
+WHERE trigger_at >= now() - ($1::int * interval '1 day')
+GROUP BY day
+ORDER BY day DESC`
+	rows, err := r.pool.Query(ctx, q, days)
+	if err != nil {
+		return nil, fmt.Errorf("ListAgentCostDaily: %w", err)
+	}
+	defer rows.Close()
+	out := make([]portfolio.AgentCostPoint, 0, days)
+	for rows.Next() {
+		var pt portfolio.AgentCostPoint
+		if err := rows.Scan(&pt.Day, &pt.CostCents, &pt.Decisions); err != nil {
+			return nil, err
+		}
+		out = append(out, pt)
+	}
+	return out, rows.Err()
+}
+
+// InsertAgentDecisionOutcome stores one scored outcome. Duplicate (decision_id, horizon)
+// is silently ignored — the unique constraint is the idempotency guard.
+func (r *Repository) InsertAgentDecisionOutcome(ctx context.Context, o portfolio.AgentDecisionOutcome) (*portfolio.AgentDecisionOutcome, error) {
+	const q = `
+INSERT INTO agent_decision_outcomes (
+    decision_id, horizon, price_at_decision, price_at_horizon,
+    symbol_return_pct, btc_return_pct, realized_return_pct, excess_return_pct,
+    fees_modeled_pct
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (decision_id, horizon) DO NOTHING
+RETURNING id, decision_id, horizon, price_at_decision, price_at_horizon,
+          symbol_return_pct, btc_return_pct, realized_return_pct, excess_return_pct,
+          fees_modeled_pct, scored_at`
+	row := r.pool.QueryRow(ctx, q,
+		o.DecisionID,
+		o.Horizon,
+		o.PriceAtDecision,
+		o.PriceAtHorizon,
+		o.SymbolReturnPct,
+		o.BTCReturnPct,
+		o.RealizedReturnPct,
+		o.ExcessReturnPct,
+		o.FeesModeledPct,
+	)
+	out, err := scanAgentDecisionOutcome(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Already scored — fetch and return the existing row.
+			const sel = `
+SELECT id, decision_id, horizon, price_at_decision, price_at_horizon,
+       symbol_return_pct, btc_return_pct, realized_return_pct, excess_return_pct,
+       fees_modeled_pct, scored_at
+FROM agent_decision_outcomes
+WHERE decision_id = $1 AND horizon = $2`
+			existing, serr := scanAgentDecisionOutcome(r.pool.QueryRow(ctx, sel, o.DecisionID, o.Horizon))
+			if serr != nil {
+				return nil, fmt.Errorf("InsertAgentDecisionOutcome (fetch existing): %w", serr)
+			}
+			return existing, nil
+		}
+		return nil, fmt.Errorf("InsertAgentDecisionOutcome: %w", err)
+	}
+	return out, nil
+}
+
+// ListUnscoredDecisionHorizons returns (decision, horizon) pairs where the horizon
+// deadline has passed but no outcome row exists yet.
+func (r *Repository) ListUnscoredDecisionHorizons(ctx context.Context, now time.Time, limit int) ([]portfolio.UnscoredHorizon, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	// Cross-join decisions × all 4 horizons; exclude already-scored pairs; filter
+	// where now >= trigger_at + horizon_duration.
+	const q = `
+WITH horizons(horizon, duration) AS (
+    VALUES
+        ('1h',  '1 hour'::interval),
+        ('24h', '24 hours'::interval),
+        ('7d',  '7 days'::interval),
+        ('14d', '14 days'::interval)
+)
+SELECT d.id, d.symbol, d.trigger_at, h.horizon, d.action
+FROM agent_decisions d
+CROSS JOIN horizons h
+WHERE $1::timestamptz >= d.trigger_at + h.duration
+  AND NOT EXISTS (
+      SELECT 1 FROM agent_decision_outcomes o
+      WHERE o.decision_id = d.id AND o.horizon = h.horizon
+  )
+ORDER BY d.trigger_at ASC, d.id ASC
+LIMIT $2`
+	rows, err := r.pool.Query(ctx, q, now, limit)
+	if err != nil {
+		return nil, fmt.Errorf("ListUnscoredDecisionHorizons: %w", err)
+	}
+	defer rows.Close()
+	out := make([]portfolio.UnscoredHorizon, 0, limit)
+	for rows.Next() {
+		var h portfolio.UnscoredHorizon
+		if err := rows.Scan(&h.DecisionID, &h.Symbol, &h.TriggerAt, &h.Horizon, &h.Action); err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
+}
+
+// ListAgentDecisionOutcomes returns outcomes matching the filter.
+func (r *Repository) ListAgentDecisionOutcomes(ctx context.Context, filter portfolio.AgentDecisionOutcomeFilter) ([]portfolio.AgentDecisionOutcome, error) {
+	const q = `
+SELECT id, decision_id, horizon, price_at_decision, price_at_horizon,
+       symbol_return_pct, btc_return_pct, realized_return_pct, excess_return_pct,
+       fees_modeled_pct, scored_at
+FROM agent_decision_outcomes
+WHERE ($1 = '' OR horizon = $1)
+  AND (array_length($2::bigint[], 1) IS NULL OR decision_id = ANY($2::bigint[]))
+ORDER BY scored_at DESC`
+	rows, err := r.pool.Query(ctx, q,
+		strings.TrimSpace(filter.Horizon),
+		filter.DecisionIDs,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("ListAgentDecisionOutcomes: %w", err)
+	}
+	defer rows.Close()
+	out := make([]portfolio.AgentDecisionOutcome, 0)
+	for rows.Next() {
+		item, err := scanAgentDecisionOutcome(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *item)
+	}
+	return out, rows.Err()
+}
+
+// ListBenchmarkDaily returns per-day aggregate returns for buy/sell decisions at the
+// given horizon, for the last N days.
+func (r *Repository) ListBenchmarkDaily(ctx context.Context, horizon string, days int) ([]portfolio.AgentBenchmarkPoint, error) {
+	if days <= 0 {
+		days = 14
+	}
+	if days > 90 {
+		days = 90
+	}
+	const q = `
+SELECT
+    (d.trigger_at AT TIME ZONE 'UTC')::date::text AS day,
+    COALESCE(AVG(CASE WHEN d.action IN ('buy','sell') THEN o.realized_return_pct END), 0) AS realized_return_pct,
+    COALESCE(AVG(CASE WHEN d.action IN ('buy','sell') THEN o.btc_return_pct END), 0)      AS btc_return_pct,
+    COALESCE(AVG(CASE WHEN d.action IN ('buy','sell') THEN o.excess_return_pct END), 0)   AS excess_return_pct,
+    COUNT(CASE WHEN d.action IN ('buy','sell') THEN 1 END)::int                          AS decision_count,
+    COUNT(CASE WHEN d.action = 'ignore' THEN 1 END)::int                                 AS ignore_count
+FROM agent_decision_outcomes o
+JOIN agent_decisions d ON d.id = o.decision_id
+WHERE o.horizon = $1
+  AND d.trigger_at >= now() - ($2::int * interval '1 day')
+GROUP BY day
+ORDER BY day DESC`
+	rows, err := r.pool.Query(ctx, q, horizon, days)
+	if err != nil {
+		return nil, fmt.Errorf("ListBenchmarkDaily: %w", err)
+	}
+	defer rows.Close()
+	out := make([]portfolio.AgentBenchmarkPoint, 0, days)
+	for rows.Next() {
+		var pt portfolio.AgentBenchmarkPoint
+		var day string
+		if err := rows.Scan(&day, &pt.RealizedReturnPct, &pt.BTCReturnPct, &pt.ExcessReturnPct, &pt.DecisionCount, &pt.IgnoreCount); err != nil {
+			return nil, err
+		}
+		if t, err := time.Parse("2006-01-02", day); err == nil {
+			pt.AsOf = t
+		}
+		out = append(out, pt)
+	}
+	return out, rows.Err()
+}
+
+// scanAgentDecision reads one agent_decisions row from a pgx row scanner.
+func scanAgentDecision(row rowScanner) (*portfolio.AgentDecision, error) {
+	var d portfolio.AgentDecision
+	var requestJSON, responseJSON, toolCallsJSON []byte
+	err := row.Scan(
+		&d.ID,
+		&d.TriggerKind,
+		&d.TriggerAt,
+		&d.IdempotencyKey,
+		&d.Symbol,
+		&d.SignalEventID,
+		&d.Action,
+		&d.Confidence,
+		&d.Rationale,
+		&d.SizingHintNotional,
+		&d.Model,
+		&d.PromptVersion,
+		&d.LatencyMS,
+		&d.CostCents,
+		&requestJSON,
+		&responseJSON,
+		&toolCallsJSON,
+		&d.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	d.RequestJSON = json.RawMessage(requestJSON)
+	d.ResponseJSON = json.RawMessage(responseJSON)
+	d.ToolCallsJSON = json.RawMessage(toolCallsJSON)
+	return &d, nil
+}
+
+// scanAgentDecisionOutcome reads one agent_decision_outcomes row.
+func scanAgentDecisionOutcome(row rowScanner) (*portfolio.AgentDecisionOutcome, error) {
+	var o portfolio.AgentDecisionOutcome
+	err := row.Scan(
+		&o.ID,
+		&o.DecisionID,
+		&o.Horizon,
+		&o.PriceAtDecision,
+		&o.PriceAtHorizon,
+		&o.SymbolReturnPct,
+		&o.BTCReturnPct,
+		&o.RealizedReturnPct,
+		&o.ExcessReturnPct,
+		&o.FeesModeledPct,
+		&o.ScoredAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &o, nil
+}
+
+// jsonOrEmpty returns the JSON bytes as-is, falling back to an empty object.
+func jsonOrEmpty(raw json.RawMessage) []byte {
+	if len(raw) == 0 {
+		return []byte(`{}`)
+	}
+	return raw
+}
+
+// jsonOrEmptyArray returns the JSON bytes as-is, falling back to an empty array.
+func jsonOrEmptyArray(raw json.RawMessage) []byte {
+	if len(raw) == 0 {
+		return []byte(`[]`)
+	}
+	return raw
 }
 
 var _ portfolio.Repository = (*Repository)(nil)

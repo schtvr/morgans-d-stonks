@@ -28,6 +28,11 @@ type fakePortfolioRepo struct {
 	labNotes         []portfolio.LabNote
 	control          portfolio.LabControlState
 	settingsVersions []portfolio.SignalSettingsVersion
+	// agent decision fields
+	agentDecisions  []portfolio.AgentDecision
+	agentOutcomes   []portfolio.AgentDecisionOutcome
+	agentCostPoints []portfolio.AgentCostPoint
+	benchmarkPoints []portfolio.AgentBenchmarkPoint
 }
 
 func newFakePortfolioRepo() *fakePortfolioRepo {
@@ -96,6 +101,9 @@ func (f *fakePortfolioRepo) UpdateSignalSettings(_ context.Context, req portfoli
 		UpdatedAt:        time.Now().UTC(),
 	}
 	return nil
+}
+func (f *fakePortfolioRepo) ListRecentAlertsFiltered(_ context.Context, _ string, _ time.Time, _ int) ([]portfolio.RecentAlert, error) {
+	return nil, nil
 }
 func (f *fakePortfolioRepo) ListRecentAlerts(context.Context, int) ([]portfolio.RecentAlert, error) {
 	out := make([]portfolio.RecentAlert, len(f.recentAlerts))
@@ -253,23 +261,24 @@ func TestFollowedSymbolHandlers(t *testing.T) {
 	}
 }
 
-func TestSeedFollowedSymbolsFromPositions(t *testing.T) {
+func TestSyncFollowedSymbolsFromPositions(t *testing.T) {
 	repo := newFakePortfolioRepo()
 	positions := []broker.Position{
-		{Symbol: "btc/usd"},
-		{Symbol: "eth-usdc"},
+		{Symbol: "btc/usd", Quantity: 0.1, MarketValue: 1000},
+		{Symbol: "eth-usdc", Quantity: 2, MarketValue: 500},
+		{Symbol: "DOGE-USD", Quantity: 0, MarketValue: 0},
 	}
-	if err := seedFollowedSymbolsFromPositions(context.Background(), repo, positions); err != nil {
+	if err := syncFollowedSymbolsFromPositions(context.Background(), repo, positions); err != nil {
 		t.Fatal(err)
 	}
-	if !repo.seeded {
-		t.Fatal("expected seed marker")
+	if b, ok := repo.followed["BTC-USD"]; !ok || b.Source != "benchmark" {
+		t.Fatalf("BTC benchmark: %+v", repo.followed["BTC-USD"])
 	}
-	if _, ok := repo.followed["BTC-USD"]; !ok {
-		t.Fatalf("missing BTC-USD: %+v", repo.followed)
+	if repo.followed["ETH-USDC"].Source != "holding" {
+		t.Fatalf("ETH holding: %+v", repo.followed["ETH-USDC"])
 	}
-	if _, ok := repo.followed["ETH-USDC"]; !ok {
-		t.Fatalf("missing ETH-USDC: %+v", repo.followed)
+	if _, ok := repo.followed["DOGE-USD"]; ok {
+		t.Fatalf("zero position should not be followed: %+v", repo.followed)
 	}
 }
 
@@ -322,9 +331,7 @@ func TestRecentAlertsHandlers(t *testing.T) {
 	if len(repo.labSignals) != 1 || repo.labSignals[0].Symbol != "BTC-USD" {
 		t.Fatalf("expected lab signal insert: %+v", repo.labSignals)
 	}
-	if _, ok := repo.labRuns["lab-signal-1-attempt-1"]; !ok {
-		t.Fatalf("expected queued lab run: %+v", repo.labRuns)
-	}
+	// OpenClaw enqueue was removed 2026-05-18; no new lab_openclaw_runs rows expected.
 	if len(repo.recentAlerts[0].PayloadJSON) == 0 || !bytes.Contains(repo.recentAlerts[0].PayloadJSON, []byte(`"schemaVersion":"crypto_signal_v1"`)) {
 		t.Fatalf("expected payload_json: %s", repo.recentAlerts[0].PayloadJSON)
 	}

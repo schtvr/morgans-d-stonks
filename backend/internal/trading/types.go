@@ -29,6 +29,7 @@ type OrderRequest struct {
 	Quantity         float64   `json:"quantity"`
 	LimitPrice       float64   `json:"limitPrice,omitempty"`
 	AvailableCash    float64   `json:"availableCash,omitempty"`
+	PositionQuantity float64   `json:"positionQuantity,omitempty"`
 	IdempotencyKey   string    `json:"idempotencyKey,omitempty"`
 	RequestHash      string    `json:"requestHash,omitempty"`
 	Provider         string    `json:"provider,omitempty"`

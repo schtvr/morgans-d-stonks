@@ -1,0 +1,31 @@
+# Live trading overlay — stack on top of base + coinbase overlays to execute REAL orders.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.coinbase.yml -f docker-compose.live.yml up -d --build
+#
+# Prerequisites (ALL must be satisfied before starting):
+#   1. COINBASE_TRADE_API_KEY and COINBASE_TRADE_API_SECRET set in .env
+#      (CDP key with order:write / trade permission — separate from COINBASE_READ_API_KEY)
+#   2. TRADING_BROKER_ENV=live set in .env
+#   3. TRADING_KILL_SWITCH=false in .env (or omitted — default is false)
+#   4. TRADING_ALLOWED_SYMBOLS, TRADING_MAX_NOTIONAL, TRADING_GLOBAL_MAX_EXPOSURE reviewed
+#   5. Paper execution soak completed (run with docker-compose.coinbase.yml only first)
+#
+# Safety checklist before going live:
+#   - TRADING_MAX_NOTIONAL is set to the maximum USD per order you accept
+#   - TRADING_GLOBAL_MAX_EXPOSURE caps total open notional
+#   - TRADING_MIN_HOLDINGS protects minimum crypto balances from being sold
+#   - AGENT_MIN_TRADE_CONFIDENCE is set conservatively (≥0.70 recommended)
+#   - DISCORD_WEBHOOK_URL is set so you get fill/reject notifications
+
+services:
+  portfolio-api:
+    environment:
+      BROKER_ENV: live
+      TRADING_LIVE_ACK: "true"
+
+  trading-worker:
+    environment:
+      # Override paper default from docker-compose.coinbase.yml → execute real orders.
+      BROKER_ENV: live
+      TRADING_LIVE_ACK: "true"

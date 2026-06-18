@@ -16,7 +16,7 @@ export default function HomePage() {
   const [positions, setPositions] = useState<PositionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [hoverSymbol, setHoverSymbol] = useState<string | null>(null);
+  const [marketChartSymbol, setMarketChartSymbol] = useState<string | null>(null);
 
   const load = useCallback(async (silent = false) => {
     setError(null);
@@ -71,9 +71,9 @@ export default function HomePage() {
           storageKey="portfolio-dashboard-collapse"
           sectionId="value-chart"
           title="Value over time"
-          description="From stored portfolio snapshots. Hover a symbol in positions to overlay its market value."
+          description="Portfolio from stored snapshots, or click a position to chart Coinbase candles for that product."
         >
-          <PortfolioHistoryChart highlightSymbol={hoverSymbol} />
+          <PortfolioHistoryChart marketSymbol={marketChartSymbol} onClearMarket={() => setMarketChartSymbol(null)} />
         </CollapsibleSection>
         <CollapsibleSection storageKey="portfolio-dashboard-collapse" sectionId="positions" title="Positions">
           <PositionsTable
@@ -81,7 +81,7 @@ export default function HomePage() {
             loading={loading}
             error={error}
             onRetry={() => void load()}
-            onSymbolHover={setHoverSymbol}
+            onSymbolClick={(sym) => setMarketChartSymbol(sym)}
           />
         </CollapsibleSection>
         <CollapsibleSection

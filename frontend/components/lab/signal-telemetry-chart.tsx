@@ -34,14 +34,14 @@ export function SignalTelemetryChart({ points }: Props) {
                 <YAxis tickLine={false} axisLine={false} fontSize={12} />
                 <Tooltip
                   contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
                     borderRadius: "0.5rem",
                   }}
                 />
-                <Line type="monotone" dataKey="deltaPct" name="Move %" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="thresholdPct" name="Threshold %" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="currentPrice" name="Price" stroke="hsl(var(--chart-3))" strokeWidth={1.5} dot={false} yAxisId={0} />
+                <Line type="monotone" dataKey="deltaPct" name="Move %" stroke="var(--chart-1)" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="thresholdPct" name="Threshold %" stroke="var(--chart-2)" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="currentPrice" name="Price" stroke="var(--chart-3)" strokeWidth={1.5} dot={false} yAxisId={0} />
               </LineChart>
             </ResponsiveContainer>
           </div>

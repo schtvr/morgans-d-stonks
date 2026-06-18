@@ -2,35 +2,28 @@ package broker
 
 import (
 	"os"
-	"strconv"
+	"strings"
 )
 
-// Config configures broker construction (IBKR / mock).
+// Config configures broker construction (Coinbase read or in-process mock).
 type Config struct {
-	Provider    string // ibkr | coinbase
-	Environment string // paper | live
-	Mode        string // ibkr-only: mock | paper | live
-	GatewayHost string
-	GatewayPort int
-	// PortalPort is the HTTPS Client Portal port (typically 5000). 0 means unset.
-	PortalPort int
-	// CoinbaseAPIKey and CoinbaseAPISecret are CDP API credentials (JWT per request).
-	// Secret is base64 Ed25519 (64 raw bytes) or PEM ECDSA, per Coinbase CDP SDK.
+	Provider          string // coinbase | mock
+	Environment       string // paper | live
 	CoinbaseAPIKey    string
 	CoinbaseAPISecret string
+	// Trade-scoped credentials (separate key with order:write permission).
+	CoinbaseTradeAPIKey    string
+	CoinbaseTradeAPISecret string
 }
 
-// LoadConfigFromEnv reads IBKR_* environment variables.
+// LoadConfigFromEnv reads BROKER_* and Coinbase CDP variables (legacy helper).
 func LoadConfigFromEnv() Config {
-	cfg := Config{
-		Provider:    getenv("BROKER_PROVIDER", "ibkr"),
-		Environment: getenv("BROKER_ENV", "paper"),
-		Mode:        getenv("IBKR_MODE", "mock"),
-		GatewayHost: getenv("IBKR_GATEWAY_HOST", "127.0.0.1"),
-		GatewayPort: getenvInt("IBKR_GATEWAY_PORT", 4001),
-		PortalPort:  getenvInt("IBKR_CLIENT_PORTAL_PORT", 5000),
+	return Config{
+		Provider:          strings.ToLower(getenv("BROKER_PROVIDER", "coinbase")),
+		Environment:       strings.ToLower(getenv("BROKER_ENV", "paper")),
+		CoinbaseAPIKey:    getenv("COINBASE_READ_API_KEY", ""),
+		CoinbaseAPISecret: getenv("COINBASE_READ_API_SECRET", ""),
 	}
-	return cfg
 }
 
 func getenv(k, def string) string {
@@ -39,16 +32,4 @@ func getenv(k, def string) string {
 		return def
 	}
 	return v
-}
-
-func getenvInt(k string, def int) int {
-	v := os.Getenv(k)
-	if v == "" {
-		return def
-	}
-	n, err := strconv.Atoi(v)
-	if err != nil {
-		return def
-	}
-	return n
 }

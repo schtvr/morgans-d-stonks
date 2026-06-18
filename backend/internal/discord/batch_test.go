@@ -48,15 +48,17 @@ func TestWebhookChunks_singleFits(t *testing.T) {
 }
 
 func TestWebhookChunks_splitsHugeSegmentAtJSON(t *testing.T) {
-	// Known layout: summary line + fence + JSON object with top-level commas.
-	s := "crypto_price_move BTC-USD price=1 delta=1% threshold=1%\n```json\n" +
-		`{"a":1,"b":2,"c":3,"d":4}` + "\n```"
-	ch := SplitOversizedCryptoAlertDiscord(s, 80)
+	// Multi-line summary + fence + JSON; maxRunes must exceed head+suffix overhead (~90 runes)
+	// or splitting falls back to raw runes and shell parsing breaks.
+	const maxRunes = 120
+	s := "### BTC-USD\n**price:** 1   |    **delta:** 1.00   |   **threshold:** 1.00%\n```json\n" +
+		`{"a":1,"b":2,"c":3,"d":4,"e":5,"f":6,"g":7,"h":8}` + "\n```"
+	ch := SplitOversizedCryptoAlertDiscord(s, maxRunes)
 	if len(ch) < 2 {
 		t.Fatalf("want split into multiple parts, got %d: %#v", len(ch), ch)
 	}
 	for _, c := range ch {
-		if utf8.RuneCountInString(c) > 80 {
+		if utf8.RuneCountInString(c) > maxRunes {
 			t.Fatalf("chunk over limit: %d runes", utf8.RuneCountInString(c))
 		}
 	}
@@ -65,7 +67,7 @@ func TestWebhookChunks_splitsHugeSegmentAtJSON(t *testing.T) {
 	if !ok {
 		t.Fatal("could not rejoin chunks")
 	}
-	if combined != `{"a":1,"b":2,"c":3,"d":4}` {
+	if combined != `{"a":1,"b":2,"c":3,"d":4,"e":5,"f":6,"g":7,"h":8}` {
 		t.Fatalf("rejoined JSON: %q", combined)
 	}
 }

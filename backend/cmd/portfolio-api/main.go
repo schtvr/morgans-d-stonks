@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/schtvr/morgans-d-stonks/internal/auth"
+	"github.com/schtvr/morgans-d-stonks/internal/broker/coinbase"
 	"github.com/schtvr/morgans-d-stonks/internal/config"
 	"github.com/schtvr/morgans-d-stonks/internal/discord"
 	"github.com/schtvr/morgans-d-stonks/internal/logging"
@@ -40,9 +42,16 @@ func main() {
 	}
 	brokerCfg := config.LoadBroker()
 	tradingCfg := config.LoadTrading()
-	if err := tradingCfg.Validate(brokerCfg.Provider); err != nil {
+	if err := brokerCfg.Validate(); err != nil {
+		log.Error("invalid broker config", "err", err)
+		os.Exit(1)
+	}
+	if err := tradingCfg.Validate(brokerCfg.Provider, brokerCfg.Env); err != nil {
 		log.Error("invalid trading config", "err", err)
 		os.Exit(1)
+	}
+	if tradingCfg.Enabled {
+		log.Info("trading enabled", "execution_mode", brokerCfg.Env, "live_ack", tradingCfg.LiveAck)
 	}
 
 	ctx := context.Background()
@@ -67,16 +76,22 @@ func main() {
 		log.Error("trading migrations", "err", err)
 		os.Exit(1)
 	}
-	if err := seedFollowedSymbolsFromLatestSnapshot(ctx, repo); err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		log.Warn("seed followed symbols", "err", err)
+	if err := syncFollowedFromLatestSnapshot(ctx, repo); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		log.Warn("sync followed symbols", "err", err)
 	}
 	if err := repo.CompactLabOpenClawPayloads(ctx, time.Now().UTC().Add(-labPayloadRetention)); err != nil {
 		log.Warn("compact lab payloads", "err", err)
 	}
 
+	var cb *coinbase.Client
+	if k, s := strings.TrimSpace(brokerCfg.CoinbaseReadAPIKey), strings.TrimSpace(brokerCfg.CoinbaseReadAPISecret); k != "" && s != "" {
+		cb = coinbase.NewReadOnly(&http.Client{Timeout: 25 * time.Second}, "", k, s)
+	}
+
 	app := &app{
 		cfg:        cfg,
 		tradingCfg: tradingCfg,
+		brokerEnv:  brokerCfg.Env,
 		repo:       repo,
 		tradeRepo:  tradeRepo,
 		tradeSvc: trading.NewService(tradeRepo, trading.Policy{
@@ -88,10 +103,12 @@ func main() {
 			DeniedSymbols:     tradingCfg.DeniedSymbols,
 			SymbolCooldown:    tradingCfg.SymbolCooldown,
 			GlobalMaxExposure: tradingCfg.GlobalMaxExposure,
+			MinHoldings:       tradingCfg.MinHoldings,
 		}),
 		metrics: &trading.Metrics{},
 		dc:      discord.NewClient(cfg.DiscordWebhookURL),
 		log:     log,
+		cb:      cb,
 	}
 
 	r := chi.NewRouter()
@@ -117,12 +134,19 @@ func main() {
 		r.Get("/api/portfolio/positions", app.handlePositions)
 		r.Get("/api/portfolio/summary", app.handleSummary)
 		r.Get("/api/portfolio/history", app.handlePortfolioHistory)
+		r.Get("/api/market/candles", app.handleMarketCandles)
 		r.Get("/api/trading/followed-symbols", app.handleFollowedSymbolsList)
 		r.Post("/api/trading/followed-symbols", app.handleFollowedSymbolsAdd)
 		r.Delete("/api/trading/followed-symbols/{symbol}", app.handleFollowedSymbolRemove)
 		r.Get("/api/trading/alert-settings", app.handleAlertSettingsGet)
 		r.Put("/api/trading/alert-settings", app.handleAlertSettingsUpdate)
 		r.Get("/api/trading/recent-alerts", app.handleRecentAlertsList)
+		r.Route("/api/agent", func(r chi.Router) {
+			r.Get("/decisions", app.handleAgentDecisionsList)
+			r.Get("/decisions/{id}", app.handleAgentDecisionGet)
+			r.Get("/benchmark", app.handleAgentBenchmark)
+			r.Get("/cost", app.handleAgentCost)
+		})
 		r.Route("/api/lab", func(r chi.Router) {
 			r.Get("/overview", app.handleLabOverview)
 			r.Get("/signals", app.handleLabSignalsList)
@@ -150,6 +174,12 @@ func main() {
 		r.Get("/internal/followed-symbols", app.handleInternalFollowedSymbols)
 		r.Get("/internal/signal-settings", app.handleInternalSignalSettings)
 		r.Post("/internal/recent-alerts", app.handleInternalRecentAlertCreate)
+		r.Get("/internal/recent-alerts/list", app.handleInternalRecentAlertsList)
+		r.Post("/internal/agent-decisions", app.handleInternalAgentDecisionCreate)
+		r.Get("/internal/agent-decisions/list", app.handleInternalAgentDecisionsList)
+		r.Get("/internal/agent-decisions/count", app.handleInternalAgentDecisionsCount)
+		r.Get("/internal/agent-decisions/outcomes", app.handleInternalAgentDecisionOutcomes)
+		r.Get("/internal/agent-cost/today", app.handleInternalAgentCostToday)
 		if app.tradingCfg.Enabled {
 			r.Route("/internal/orders", func(r chi.Router) {
 				r.Use(app.tradingGate)
@@ -167,6 +197,14 @@ func main() {
 			})
 		}
 	})
+
+	scorerCtx, scorerCancel := context.WithCancel(ctx)
+	defer scorerCancel()
+	if app.cb != nil {
+		go app.runScorer(scorerCtx)
+	} else {
+		log.Warn("scorer disabled: no Coinbase client (COINBASE_READ_API_KEY not set)")
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -191,10 +229,12 @@ func main() {
 type app struct {
 	cfg        config.PortfolioAPI
 	tradingCfg config.Trading
+	brokerEnv  string
 	repo       portfolio.Repository
 	tradeRepo  *tradepg.Repository
 	tradeSvc   *trading.Service
 	metrics    *trading.Metrics
 	dc         *discord.Client
 	log        *slog.Logger
+	cb         *coinbase.Client
 }

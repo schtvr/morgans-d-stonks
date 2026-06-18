@@ -1,5 +1,8 @@
 # SCH-22: Rich Alerts & Dashboard Analytics
 
+> **Partial** — `GET /api/portfolio/history` and `GET /api/market/candles` are implemented.
+> Rich Discord embeds and `GET /api/portfolio/metrics` are not yet built.
+
 > **Linear**: [SCH-22](https://linear.app/schtvr/issue/SCH-22/epic-p1-rich-alerts-and-dashboard-analytics)
 > **Milestone**: P1: First follow-up
 > **Wave**: 5 (all P0 complete; parallel with SCH-23)

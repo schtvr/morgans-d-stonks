@@ -1,5 +1,7 @@
 # SCH-16: Deterministic Signals & Discord (Minimal)
 
+> **SUPERSEDED** — signals service does not send Discord messages. Alerts persist to Postgres via `POST /internal/recent-alerts`. Discord webhooks exist only on portfolio-api for trade outcome notifications when `DISCORD_WEBHOOK_URL` is set.
+
 > **Linear**: [SCH-16](https://linear.app/schtvr/issue/SCH-16/epic-p0-deterministic-signals-and-discord-minimal)
 > **Milestone**: P0: MVP
 > **Wave**: 4 (depends on SCH-21 for snapshots + SCH-18 for snapshot reads)

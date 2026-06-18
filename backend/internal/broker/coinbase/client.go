@@ -128,6 +128,8 @@ type accountRow struct {
 type v3ListAccount struct {
 	Currency         string          `json:"currency"`
 	AvailableBalance json.RawMessage `json:"available_balance"`
+	Hold             json.RawMessage `json:"hold"`
+	Type             string          `json:"type"`
 }
 
 func v3AvailableBalanceQuantity(raw json.RawMessage) float64 {
@@ -167,7 +169,7 @@ func (c *Client) fetchAllAccountRows(ctx context.Context) ([]accountRow, error) 
 		}
 		for _, a := range page.Accounts {
 			code := strings.TrimSpace(strings.ToUpper(a.Currency))
-			amt := v3AvailableBalanceQuantity(a.AvailableBalance)
+			amt := v3AvailableBalanceQuantity(a.AvailableBalance) + v3AvailableBalanceQuantity(a.Hold)
 			out = append(out, accountRow{currencyCode: code, balanceAmount: amt})
 		}
 		if !page.HasNext {
@@ -276,6 +278,9 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body io.Reader
 		}
 		if authz != "" {
 			req.Header.Set("Authorization", authz)
+		}
+		if body != nil {
+			req.Header.Set("Content-Type", "application/json")
 		}
 		resp, err := c.httpClient.Do(req)
 		if err != nil {

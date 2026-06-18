@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/schtvr/morgans-d-stonks/internal/openclaw"
 	"github.com/schtvr/morgans-d-stonks/internal/portfolio"
 )
 
@@ -102,29 +101,11 @@ func (a *app) handleLabRunGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, run)
 }
 
+// TODO(SCH-AG1): remove this handler in a follow-up. OpenClaw retry is no longer
+// supported — no new runs are enqueued. Returning 410 Gone so the frontend
+// surfaces a clear error rather than silently succeeding.
 func (a *app) handleLabRunRetry(w http.ResponseWriter, r *http.Request) {
-	requestID := chi.URLParam(r, "requestId")
-	run, err := a.repo.GetLabOpenClawRun(r.Context(), requestID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			http.Error(w, "not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-	run.Status = openclaw.StatusRetrying
-	run.Attempts++
-	run.ErrorText = ""
-	run.CompletedAt = nil
-	if err := a.repo.UpsertLabOpenClawRun(r.Context(), *run); err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-	if a.log != nil {
-		a.log.Info("lab_openclaw_retry", "request_id", requestID, "attempts", run.Attempts)
-	}
-	writeJSON(w, http.StatusAccepted, run)
+	http.Error(w, "OpenClaw integration removed; retry is no longer supported", http.StatusGone)
 }
 
 func (a *app) handleLabOpenClawPause(w http.ResponseWriter, r *http.Request) {
@@ -253,34 +234,12 @@ func (a *app) recordLabSignal(ctxReq *http.Request, alert portfolio.RecentAlert)
 		}
 		return
 	}
-	if control.OpenClawPaused || control.CircuitOpen {
-		status := openclaw.StatusSkipped
-		reason := "paused"
-		if control.CircuitOpen {
-			reason = "circuit_open"
-		}
-		_ = a.repo.UpsertLabOpenClawRun(ctxReq.Context(), portfolio.LabOpenClawRun{
-			RequestID:   labRequestID(event.ID, 1),
-			SignalID:    event.ID,
-			Status:      status,
-			Attempts:    1,
-			ErrorText:   reason,
-			RequestHash: hashRaw(event.PayloadJSON),
-			RequestJSON: event.PayloadJSON,
-		})
-		return
+	if a.log != nil {
+		a.log.Debug("lab_signal_recorded", "signal_id", event.ID, "paused", control.OpenClawPaused, "circuit_open", control.CircuitOpen)
 	}
-	if err := a.repo.UpsertLabOpenClawRun(ctxReq.Context(), portfolio.LabOpenClawRun{
-		RequestID:   labRequestID(event.ID, 1),
-		SignalID:    event.ID,
-		Status:      openclaw.StatusQueued,
-		Attempts:    1,
-		RequestHash: hashRaw(event.PayloadJSON),
-		RequestJSON: event.PayloadJSON,
-		StartedAt:   timePtr(time.Now().UTC()),
-	}); err != nil && a.log != nil {
-		a.log.Warn("lab_openclaw_enqueue", "err", err, "signal_id", event.ID)
-	}
+	// OpenClaw enqueue removed 2026-05-18 (SCH-AG1). The Agent (internal/agent)
+	// handles decisions in-process in the signals service. lab_openclaw_runs
+	// table preserved for historical data; no new rows written.
 }
 
 func parseLabSignalFilter(r *http.Request) (portfolio.LabSignalFilter, error) {

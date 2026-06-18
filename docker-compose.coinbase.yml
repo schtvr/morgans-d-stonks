@@ -1,5 +1,19 @@
-# Backlog: optional Coinbase paper execution. Merge with base compose only when experimenting with orders.
+# Coinbase paper execution overlay. Merge with base compose to enable order execution.
 # docker compose -f docker-compose.yml -f docker-compose.coinbase.yml up -d --build
+#
+# This override:
+#   - Enables TRADING_ENABLED on portfolio-api and trading-worker
+#   - Adds the trading-worker service (paper execution by default)
+#   - Sets AGENT_TRADE_ENABLED=true on signals so agent decisions become orders
+#
+# Preflight: verify TRADING_ALLOWED_SYMBOLS, TRADING_MAX_NOTIONAL, AGENT_MIN_TRADE_CONFIDENCE
+# before starting. Keep TRADING_KILL_SWITCH=true until you are ready.
+#
+# To go LIVE (real money):
+#   1. Set COINBASE_TRADE_API_KEY and COINBASE_TRADE_API_SECRET in .env
+#   2. Set TRADING_BROKER_ENV=live in .env
+#   3. Stack docker-compose.live.yml on top:
+#      docker compose -f docker-compose.yml -f docker-compose.coinbase.yml -f docker-compose.live.yml up -d --build
 
 services:
   portfolio-api:
@@ -14,6 +28,17 @@ services:
       TRADING_RESERVE: "0"
       TRADING_GLOBAL_MAX_EXPOSURE: "5000"
       TRADING_SYMBOL_COOLDOWN: 5m
+      TRADING_MIN_HOLDINGS: ${TRADING_MIN_HOLDINGS:-}
+      TRADING_LIVE_ACK: ${TRADING_LIVE_ACK:-false}
+      TRADING_LIVE_MAX_NOTIONAL_CAP: ${TRADING_LIVE_MAX_NOTIONAL_CAP:-500}
+      COINBASE_TRADE_API_KEY: ${COINBASE_TRADE_API_KEY:-}
+      COINBASE_TRADE_API_SECRET: ${COINBASE_TRADE_API_SECRET:-}
+
+  signals:
+    environment:
+      AGENT_TRADE_ENABLED: "true"
+      AGENT_MIN_TRADE_CONFIDENCE: ${AGENT_MIN_TRADE_CONFIDENCE:-0.70}
+      AGENT_DEFAULT_TRADE_NOTIONAL: ${AGENT_DEFAULT_TRADE_NOTIONAL:-0}
 
   trading-worker:
     build:
@@ -24,21 +49,26 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgres://portfolio:changeme@db:5432/portfolio?sslmode=disable}
       BROKER_PROVIDER: coinbase
-      BROKER_ENV: paper
+      # TRADING_BROKER_ENV controls paper vs live execution for this worker only.
+      # Default: paper (safe). Set TRADING_BROKER_ENV=live in .env and stack
+      # docker-compose.live.yml to execute real orders.
+      BROKER_ENV: ${TRADING_BROKER_ENV:-paper}
       COINBASE_READ_API_KEY: ${COINBASE_READ_API_KEY:-}
       COINBASE_READ_API_SECRET: ${COINBASE_READ_API_SECRET:-}
       COINBASE_TRADE_API_KEY: ${COINBASE_TRADE_API_KEY:-}
       COINBASE_TRADE_API_SECRET: ${COINBASE_TRADE_API_SECRET:-}
       TRADING_ENABLED: "true"
-      TRADING_KILL_SWITCH: "false"
-      TRADING_MAX_NOTIONAL: "1000"
-      TRADING_RESERVE: "0"
-      TRADING_ALLOWED_PROVIDERS: coinbase
-      TRADING_ALLOWED_SYMBOLS: BTC-USD,ETH-USD
+      TRADING_KILL_SWITCH: ${TRADING_KILL_SWITCH:-false}
+      TRADING_MAX_NOTIONAL: ${TRADING_MAX_NOTIONAL:-1000}
+      TRADING_RESERVE: ${TRADING_RESERVE:-0}
+      TRADING_ALLOWED_PROVIDERS: ${TRADING_ALLOWED_PROVIDERS:-coinbase}
+      TRADING_ALLOWED_SYMBOLS: ${TRADING_ALLOWED_SYMBOLS:-BTC-USD,ETH-USD}
       TRADING_DENIED_SYMBOLS: ${TRADING_DENIED_SYMBOLS:-}
-      TRADING_GLOBAL_MAX_EXPOSURE: "5000"
-      TRADING_SYMBOL_COOLDOWN: 5m
-      TRADING_INTERVAL: 30s
+      TRADING_GLOBAL_MAX_EXPOSURE: ${TRADING_GLOBAL_MAX_EXPOSURE:-5000}
+      TRADING_MIN_HOLDINGS: ${TRADING_MIN_HOLDINGS:-}
+      TRADING_SYMBOL_COOLDOWN: ${TRADING_SYMBOL_COOLDOWN:-5m}
+      TRADING_INTERVAL: ${TRADING_INTERVAL:-30s}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
     networks:
       - portfolio-net
     depends_on:

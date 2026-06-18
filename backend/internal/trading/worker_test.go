@@ -69,6 +69,28 @@ func (f fakeExec) PlaceOrder(context.Context, broker.OrderIntent) (*broker.Order
 }
 func (fakeExec) CancelOrder(context.Context, string) error { return nil }
 
+// fakePollingExec supports PlaceOrder + GetOrder (simulates live broker with polling).
+type fakePollingExec struct {
+	placeStatus string // returned by PlaceOrder
+	pollStatus  string // returned by GetOrder on subsequent ticks
+}
+
+func (f fakePollingExec) PlaceOrder(context.Context, broker.OrderIntent) (*broker.Order, error) {
+	status := f.placeStatus
+	if status == "" {
+		status = "accepted"
+	}
+	return &broker.Order{ID: "live-1", Status: status, CreatedAt: time.Now().UTC()}, nil
+}
+func (fakePollingExec) CancelOrder(context.Context, string) error { return nil }
+func (f fakePollingExec) GetOrder(_ context.Context, _ string) (*broker.Order, error) {
+	status := f.pollStatus
+	if status == "" {
+		status = "filled"
+	}
+	return &broker.Order{ID: "live-1", Status: status, FilledPrice: 50000, FilledSize: 0.001, CreatedAt: time.Now().UTC()}, nil
+}
+
 func TestWorkerReconcilesAndRecordsFill(t *testing.T) {
 	repo := &fakeRepo{open: []Order{{
 		ID: "o1", Symbol: "BTC-USD", Side: OrderSideBuy, Quantity: 1, LimitPrice: 50, Status: OrderStatusAccepted,
@@ -122,5 +144,60 @@ func TestWorkerRejectAndPartialFillPaths(t *testing.T) {
 	})
 }
 
+func TestWorkerPollsLiveBrokerForFill(t *testing.T) {
+	// Simulate: order already has a ProviderOrderID (was placed previously), status still "accepted".
+	// On the next tick the worker should poll GetOrder → find "filled" → update status + record fill.
+	repo := &fakeRepo{open: []Order{{
+		ID: "o1", Symbol: "BTC-USD", Side: OrderSideBuy, Quantity: 50,
+		Notional: 50, Status: OrderStatusAccepted, ProviderOrderID: "live-1",
+	}}}
+	var notified []string
+	w := &Worker{
+		Repo:     repo,
+		Executor: fakePollingExec{placeStatus: "accepted", pollStatus: "filled"},
+		Interval: time.Second,
+		Log:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Notify: func(_ context.Context, msg string) {
+			notified = append(notified, msg)
+		},
+	}
+	w.tick(context.Background())
+	if got := repo.status["o1"]; got != OrderStatusFilled {
+		t.Fatalf("expected filled status, got %s", got)
+	}
+	if len(repo.fills) != 1 {
+		t.Fatalf("expected fill recorded, got %d", len(repo.fills))
+	}
+	if repo.fills[0].Price != 50000 {
+		t.Fatalf("expected fill price 50000, got %g", repo.fills[0].Price)
+	}
+	if len(notified) == 0 {
+		t.Fatal("expected Discord notification to fire")
+	}
+}
+
+func TestWorkerPollUnchangedTouchesRecord(t *testing.T) {
+	// Order has ProviderOrderID; live broker still reports "accepted" → no fill, just touch.
+	repo := &fakeRepo{open: []Order{{
+		ID: "o1", Symbol: "ETH-USD", Side: OrderSideBuy, Quantity: 10,
+		Status: OrderStatusAccepted, ProviderOrderID: "live-2",
+	}}}
+	w := &Worker{
+		Repo:     repo,
+		Executor: fakePollingExec{placeStatus: "accepted", pollStatus: "accepted"},
+		Interval: time.Second,
+		Log:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	w.tick(context.Background())
+	// Status should stay accepted
+	if got := repo.status["o1"]; got != OrderStatusAccepted {
+		t.Fatalf("expected accepted (unchanged), got %s", got)
+	}
+	if len(repo.fills) != 0 {
+		t.Fatalf("expected no fill, got %d", len(repo.fills))
+	}
+}
+
 var _ Repository = (*fakeRepo)(nil)
 var _ Executor = fakeExec{}
+var _ broker.OrderPoller = fakePollingExec{}

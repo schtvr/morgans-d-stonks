@@ -34,7 +34,7 @@ func (s *Service) Validate(ctx context.Context, req OrderRequest) (RiskDecision,
 		return RiskDecision{}, err
 	}
 	openOrders, _ := s.Repo.ListOpenOrders(ctx)
-	return s.Policy.Evaluate(PolicyContext{Provider: req.Provider, AvailableCash: req.AvailableCash, OpenOrders: openOrders}, req), nil
+	return s.Policy.Evaluate(policyContext(req, openOrders), req), nil
 }
 
 // Create creates or replays an order request.
@@ -57,13 +57,13 @@ func (s *Service) Create(ctx context.Context, req OrderRequest) (*OrderResponse,
 			_ = json.Unmarshal(existing.ResponseJSON, &resp)
 			return &resp, nil
 		}
-		return &OrderResponse{Order: *existing, Decision: s.Policy.Evaluate(PolicyContext{Provider: req.Provider, AvailableCash: req.AvailableCash}, req)}, nil
+		return &OrderResponse{Order: *existing, Decision: s.Policy.Evaluate(policyContext(req, nil), req)}, nil
 	} else if !errors.Is(err, ErrOrderNotFound) {
 		return nil, err
 	}
 
 	openOrders, _ := s.Repo.ListOpenOrders(ctx)
-	decision := s.Policy.Evaluate(PolicyContext{Provider: req.Provider, AvailableCash: req.AvailableCash, OpenOrders: openOrders}, req)
+	decision := s.Policy.Evaluate(policyContext(req, openOrders), req)
 	now := s.now()
 	order := Order{
 		ID:             uuid.NewString(),
@@ -170,6 +170,15 @@ func (s *Service) now() time.Time {
 		return s.Clock().UTC()
 	}
 	return time.Now().UTC()
+}
+
+func policyContext(req OrderRequest, openOrders []Order) PolicyContext {
+	return PolicyContext{
+		Provider:         req.Provider,
+		AvailableCash:    req.AvailableCash,
+		PositionQuantity: req.PositionQuantity,
+		OpenOrders:       openOrders,
+	}
 }
 
 func joinReasonCodes(codes []string) string {

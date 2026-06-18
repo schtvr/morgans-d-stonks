@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewMock(t *testing.T) {
-	b, err := New(broker.Config{Mode: "mock"})
+	b, err := New(broker.Config{Provider: "mock"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,7 +21,7 @@ func TestNewMock(t *testing.T) {
 }
 
 func TestNewExecutionUnsupportedMode(t *testing.T) {
-	_, err := NewExecution(broker.Config{Mode: "mock"})
+	_, err := NewExecution(broker.Config{Provider: "mock"})
 	if err == nil {
 		t.Fatal("expected unsupported execution error")
 	}
@@ -38,6 +38,25 @@ func TestNewExecutionCoinbasePaper(t *testing.T) {
 	}
 	if order.Status == "" {
 		t.Fatal("expected paper order status")
+	}
+}
+
+func TestNewExecutionCoinbaseLive(t *testing.T) {
+	_, err := NewExecution(broker.Config{Provider: "coinbase", Environment: "live"})
+	if err == nil {
+		t.Fatal("expected error without trade credentials")
+	}
+	b, err := NewExecution(broker.Config{
+		Provider:               "coinbase",
+		Environment:            "live",
+		CoinbaseTradeAPIKey:    "trade-key",
+		CoinbaseTradeAPISecret: "trade-secret",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b == nil {
+		t.Fatal("expected live broker")
 	}
 }
 

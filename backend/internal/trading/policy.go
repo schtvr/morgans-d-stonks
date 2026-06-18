@@ -17,13 +17,15 @@ type Policy struct {
 	AllowedProviders  []string
 	SymbolCooldown    time.Duration
 	GlobalMaxExposure float64
+	MinHoldings       map[string]float64
 }
 
 // PolicyContext supplies runtime values for reserve checks.
 type PolicyContext struct {
 	Provider      string
-	AvailableCash float64
-	OpenOrders    []Order
+	AvailableCash    float64
+	PositionQuantity float64
+	OpenOrders       []Order
 }
 
 // Evaluate applies all configured rules and returns a deterministic decision.
@@ -77,19 +79,26 @@ func (p Policy) Evaluate(ctx PolicyContext, req OrderRequest) RiskDecision {
 		}
 	}
 	if req.Side == OrderSideSell {
-		var netQty float64
+		var pendingSellQty float64
 		for _, ord := range ctx.OpenOrders {
 			if !strings.EqualFold(ord.Symbol, req.Symbol) {
 				continue
 			}
-			if ord.Side == OrderSideBuy {
-				netQty += ord.Quantity
-			} else if ord.Side == OrderSideSell {
-				netQty -= ord.Quantity
+			if ord.Side == OrderSideSell {
+				pendingSellQty += ord.Quantity
 			}
 		}
-		if netQty < req.Quantity {
+		heldQty := ctx.PositionQuantity
+		if heldQty > 0 && heldQty-pendingSellQty < req.Quantity {
 			reasonCodes = append(reasonCodes, "no_shorting")
+		} else if heldQty == 0 && pendingSellQty < req.Quantity {
+			reasonCodes = append(reasonCodes, "no_shorting")
+		}
+		if minQty := p.minHolding(req.Symbol); minQty > 0 && ctx.PositionQuantity > 0 {
+			remaining := ctx.PositionQuantity - pendingSellQty - req.Quantity
+			if remaining+1e-12 < minQty {
+				reasonCodes = append(reasonCodes, "min_holding")
+			}
 		}
 	}
 	sort.Strings(reasonCodes)
@@ -99,6 +108,15 @@ func (p Policy) Evaluate(ctx PolicyContext, req OrderRequest) RiskDecision {
 		Notional:    notional,
 		CheckedAt:   time.Now().UTC(),
 	}
+}
+
+func (p Policy) minHolding(symbol string) float64 {
+	for sym, min := range p.MinHoldings {
+		if strings.EqualFold(sym, symbol) {
+			return min
+		}
+	}
+	return 0
 }
 
 func containsFold(values []string, want string) bool {

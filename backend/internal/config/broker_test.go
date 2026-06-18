@@ -12,4 +12,13 @@ func TestBrokerValidate(t *testing.T) {
 	if err := (Broker{Provider: "coinbase", CoinbaseReadAPIKey: "k", CoinbaseReadAPISecret: "s"}).Validate(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if err := (Broker{Provider: "coinbase", Env: "live", CoinbaseReadAPIKey: "k", CoinbaseReadAPISecret: "s"}).Validate(); err == nil {
+		t.Fatal("expected missing trade creds error for live env")
+	}
+	if err := (Broker{Provider: "coinbase", Env: "live", CoinbaseReadAPIKey: "k", CoinbaseReadAPISecret: "s", CoinbaseTradeAPIKey: "tk", CoinbaseTradeAPISecret: "ts"}).Validate(); err != nil {
+		t.Fatalf("unexpected live broker error: %v", err)
+	}
+	if err := (Broker{Provider: "mock"}).Validate(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }

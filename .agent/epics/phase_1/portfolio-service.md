@@ -1,5 +1,7 @@
 # SCH-18: Portfolio Service (API, Persistence, Auth)
 
+> **Status: Implemented** — verified 2026-05
+
 > **Linear**: [SCH-18](https://linear.app/schtvr/issue/SCH-18/epic-p0-portfolio-service-api-persistence-auth)
 > **Milestone**: P0: MVP
 > **Wave**: 2 (depends on SCH-19 for repo layout; parallel with SCH-20)
@@ -105,7 +107,7 @@ Summary endpoint response:
 
 ## Do NOT
 
-- Implement the ingest scheduler or IBKR calls (SCH-21 and SCH-20).
+- Implement the ingest scheduler or Coinbase broker calls (SCH-21 and SCH-20).
 - Build the dashboard UI (SCH-17 consumes this API).
 - Add multi-tenant RBAC (single-user is fine for P0).
 - Add TLS termination (homelab behind LAN).

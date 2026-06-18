@@ -31,13 +31,13 @@ type PortfolioHistoryResponse struct {
 
 // HistoryRangeDurations maps the public range query values to lookback durations.
 var HistoryRangeDurations = map[string]time.Duration{
-	"1h":  time.Hour,
-	"1d":  24 * time.Hour,
-	"1w":  7 * 24 * time.Hour,
-	"1m":  30 * 24 * time.Hour,
-	"3m":  90 * 24 * time.Hour,
-	"6m":  180 * 24 * time.Hour,
-	"1y":  365 * 24 * time.Hour,
+	"1h": time.Hour,
+	"1d": 24 * time.Hour,
+	"1w": 7 * 24 * time.Hour,
+	"1m": 30 * 24 * time.Hour,
+	"3m": 90 * 24 * time.Hour,
+	"6m": 180 * 24 * time.Hour,
+	"1y": 365 * 24 * time.Hour,
 }
 
 // ParseHistoryRange returns the duration for a range token, or ok=false.

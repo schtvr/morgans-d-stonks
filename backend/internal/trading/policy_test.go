@@ -66,3 +66,32 @@ func TestPolicyEvaluate_CooldownExposureAndNoShorting(t *testing.T) {
 		t.Fatalf("expected no_shorting rejection: %+v", dec)
 	}
 }
+
+func TestPolicyEvaluate_MinHolding(t *testing.T) {
+	p := Policy{MinHoldings: map[string]float64{"BTC-USD": 0.0075, "SOL-USD": 4}}
+	ctx := PolicyContext{Provider: "coinbase", PositionQuantity: 0.01}
+
+	dec := p.Evaluate(ctx, OrderRequest{Symbol: "BTC-USD", Side: OrderSideSell, Quantity: 0.001, LimitPrice: 100000})
+	if !dec.Allowed {
+		t.Fatalf("expected allowed sell within floor: %+v", dec)
+	}
+
+	dec = p.Evaluate(ctx, OrderRequest{Symbol: "BTC-USD", Side: OrderSideSell, Quantity: 0.005, LimitPrice: 100000})
+	if dec.Allowed || !containsString(dec.ReasonCodes, "min_holding") {
+		t.Fatalf("expected min_holding rejection: %+v", dec)
+	}
+
+	dec = p.Evaluate(PolicyContext{Provider: "coinbase", PositionQuantity: 10}, OrderRequest{Symbol: "SOL-USD", Side: OrderSideSell, Quantity: 7, LimitPrice: 100})
+	if dec.Allowed || !containsString(dec.ReasonCodes, "min_holding") {
+		t.Fatalf("expected SOL min_holding rejection: %+v", dec)
+	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, v := range values {
+		if v == want {
+			return true
+		}
+	}
+	return false
+}

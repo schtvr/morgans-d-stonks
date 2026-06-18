@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/schtvr/morgans-d-stonks/internal/trading"
@@ -58,8 +59,18 @@ func DecodeAndMap(r *http.Request, schemaVersion string) (trading.OrderRequest, 
 		Quantity:       quantity,
 		IdempotencyKey: req.IdempotencyKey,
 		Provider:       "coinbase",
-		ProviderEnv:    "paper",
+		ProviderEnv:    brokerEnv(),
 	}
 	out.RequestHash = trading.HashRequest(out)
 	return out, nil
+}
+
+// brokerEnv returns the current BROKER_ENV value, defaulting to "paper".
+// This is used for metadata on OrderRequest.ProviderEnv only — actual execution
+// environment is controlled by the trading-worker's BROKER_ENV at runtime.
+func brokerEnv() string {
+	if v := strings.TrimSpace(os.Getenv("BROKER_ENV")); v != "" {
+		return strings.ToLower(v)
+	}
+	return "paper"
 }
