@@ -10,32 +10,35 @@ import (
 
 // Trading holds env for the trading API / worker rollout controls.
 type Trading struct {
-	Enabled           bool
-	KillSwitch        bool
-	MaxNotional       float64
-	Reserve           float64
-	AllowedProviders  []string
-	AllowedSymbols    []string
-	DeniedSymbols     []string
-	SymbolCooldown    time.Duration
-	GlobalMaxExposure float64
-	// MinHoldings maps symbol (e.g. BTC-USD) to minimum base-asset quantity that must remain after sells.
-	MinHoldings map[string]float64
+	Enabled            bool
+	KillSwitch         bool
+	MaxNotional        float64
+	Reserve            float64
+	AllowedProviders   []string
+	AllowedSymbols     []string
+	DeniedSymbols      []string
+	SymbolCooldown     time.Duration
+	GlobalMaxExposure  float64
+	MinHoldings        map[string]float64
+	LiveAck            bool
+	LiveMaxNotionalCap float64
 }
 
 // LoadTrading loads trading rollout config from the environment.
 func LoadTrading() Trading {
 	return Trading{
-		Enabled:           getenvBool("TRADING_ENABLED", false),
-		KillSwitch:        getenvBool("TRADING_KILL_SWITCH", false),
-		MaxNotional:       getenvFloat("TRADING_MAX_NOTIONAL", 0),
-		Reserve:           getenvFloat("TRADING_RESERVE", 0),
-		AllowedProviders:  getenvCSVList("TRADING_ALLOWED_PROVIDERS", ""),
-		AllowedSymbols:    getenvCSVList("TRADING_ALLOWED_SYMBOLS", ""),
-		DeniedSymbols:     getenvCSVList("TRADING_DENIED_SYMBOLS", ""),
-		SymbolCooldown:    getenvDuration("TRADING_SYMBOL_COOLDOWN", 0),
-		GlobalMaxExposure: getenvFloat("TRADING_GLOBAL_MAX_EXPOSURE", 0),
-		MinHoldings:       parseMinHoldings(getenv("TRADING_MIN_HOLDINGS", "")),
+		Enabled:            getenvBool("TRADING_ENABLED", false),
+		KillSwitch:         getenvBool("TRADING_KILL_SWITCH", false),
+		MaxNotional:        getenvFloat("TRADING_MAX_NOTIONAL", 0),
+		Reserve:            getenvFloat("TRADING_RESERVE", 0),
+		AllowedProviders:   getenvCSVList("TRADING_ALLOWED_PROVIDERS", ""),
+		AllowedSymbols:     getenvCSVList("TRADING_ALLOWED_SYMBOLS", ""),
+		DeniedSymbols:      getenvCSVList("TRADING_DENIED_SYMBOLS", ""),
+		SymbolCooldown:     getenvDuration("TRADING_SYMBOL_COOLDOWN", 0),
+		GlobalMaxExposure:  getenvFloat("TRADING_GLOBAL_MAX_EXPOSURE", 0),
+		MinHoldings:        parseMinHoldings(getenv("TRADING_MIN_HOLDINGS", "")),
+		LiveAck:            getenvBool("TRADING_LIVE_ACK", false),
+		LiveMaxNotionalCap: getenvFloat("TRADING_LIVE_MAX_NOTIONAL_CAP", 500),
 	}
 }
 
@@ -61,7 +64,7 @@ func parseMinHoldings(raw string) map[string]float64 {
 }
 
 // Validate returns an error for unsafe trading combinations.
-func (c Trading) Validate(provider string) error {
+func (c Trading) Validate(provider, brokerEnv string) error {
 	if !c.Enabled {
 		return nil
 	}
@@ -79,6 +82,18 @@ func (c Trading) Validate(provider string) error {
 	}
 	if c.MaxNotional <= 0 {
 		return fmt.Errorf("TRADING_MAX_NOTIONAL must be > 0 when trading is enabled")
+	}
+	if strings.EqualFold(strings.TrimSpace(brokerEnv), "live") {
+		if !c.LiveAck {
+			return fmt.Errorf("TRADING_LIVE_ACK must be true when BROKER_ENV=live and TRADING_ENABLED=true")
+		}
+		cap := c.LiveMaxNotionalCap
+		if cap <= 0 {
+			cap = 500
+		}
+		if c.MaxNotional > cap {
+			return fmt.Errorf("TRADING_MAX_NOTIONAL %.2f exceeds TRADING_LIVE_MAX_NOTIONAL_CAP %.2f for live trading", c.MaxNotional, cap)
+		}
 	}
 	return nil
 }

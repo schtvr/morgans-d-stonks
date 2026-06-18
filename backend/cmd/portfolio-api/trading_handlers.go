@@ -21,6 +21,10 @@ func (a *app) tradingGate(next http.Handler) http.Handler {
 			http.NotFound(w, r)
 			return
 		}
+		if strings.EqualFold(strings.TrimSpace(a.brokerEnv), "live") && !a.tradingCfg.LiveAck {
+			http.Error(w, "live trading requires TRADING_LIVE_ACK=true", http.StatusForbidden)
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }
@@ -31,6 +35,7 @@ func (a *app) handleOrderValidate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
+	a.applyTradingDefaults(&req)
 	dec, err := a.tradeSvc.Validate(r.Context(), req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -48,6 +53,7 @@ func (a *app) handleOrderCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
+	a.applyTradingDefaults(&req)
 	if req.IdempotencyKey == "" {
 		req.IdempotencyKey = r.Header.Get("X-Idempotency-Key")
 	}
@@ -76,6 +82,9 @@ func (a *app) handleOrderCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	if a.log != nil {
 		a.log.Info("order_create", "request_id", chimiddleware.GetReqID(r.Context()), "order_id", resp.Order.ID, "symbol", resp.Order.Symbol, "status", resp.Order.Status, "idempotency_key", resp.Order.IdempotencyKey)
+		if resp.Decision.Allowed && strings.EqualFold(strings.TrimSpace(a.brokerEnv), "live") {
+			a.log.Info("live_order_create", "request_id", chimiddleware.GetReqID(r.Context()), "order_id", resp.Order.ID, "symbol", resp.Order.Symbol, "side", resp.Order.Side, "notional", resp.Order.Notional, "idempotency_key", resp.Order.IdempotencyKey)
+		}
 	}
 	writeJSON(w, http.StatusCreated, resp)
 }
@@ -137,6 +146,7 @@ func (a *app) handleMCPOrderValidate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	a.applyTradingDefaults(&req)
 	dec, err := a.tradeSvc.Validate(r.Context(), req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -151,6 +161,7 @@ func (a *app) handleMCPOrderCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	a.applyTradingDefaults(&req)
 	if req.IdempotencyKey == "" {
 		req.IdempotencyKey = r.Header.Get("X-Idempotency-Key")
 	}
@@ -174,6 +185,9 @@ func (a *app) handleMCPOrderCreate(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if a.log != nil && resp.Decision.Allowed && strings.EqualFold(strings.TrimSpace(a.brokerEnv), "live") {
+		a.log.Info("live_order_create", "request_id", chimiddleware.GetReqID(r.Context()), "order_id", resp.Order.ID, "symbol", resp.Order.Symbol, "side", resp.Order.Side, "notional", resp.Order.Notional, "idempotency_key", resp.Order.IdempotencyKey)
+	}
 	writeJSON(w, http.StatusCreated, resp)
 }
 
@@ -195,6 +209,18 @@ func decodeTradingRequest(r *http.Request) (trading.OrderRequest, error) {
 		req.ProviderEnv = "paper"
 	}
 	return req, nil
+}
+
+func (a *app) applyTradingDefaults(req *trading.OrderRequest) {
+	if req.Provider == "" {
+		req.Provider = "coinbase"
+	}
+	if req.ProviderEnv == "" {
+		req.ProviderEnv = strings.ToLower(strings.TrimSpace(a.brokerEnv))
+	}
+	if req.ProviderEnv == "" {
+		req.ProviderEnv = "paper"
+	}
 }
 
 func decodeMCPTradingRequest(r *http.Request, schemaVersion string) (trading.OrderRequest, error) {

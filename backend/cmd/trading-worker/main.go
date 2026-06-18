@@ -19,7 +19,11 @@ func main() {
 	log := logging.New("trading-worker")
 	brokerCfg := config.LoadBroker()
 	tradingCfg := config.LoadTrading()
-	if err := tradingCfg.Validate(brokerCfg.Provider); err != nil {
+	if err := brokerCfg.Validate(); err != nil {
+		log.Error("invalid broker config", "err", err)
+		os.Exit(1)
+	}
+	if err := tradingCfg.Validate(brokerCfg.Provider, brokerCfg.Env); err != nil {
 		if tradingCfg.Enabled {
 			log.Error("invalid trading config", "err", err)
 			os.Exit(1)
@@ -43,12 +47,13 @@ func main() {
 
 	var exec trading.Executor
 	if tradingCfg.Enabled {
-		if e, err := brokerwire.NewExecution(brokerCfg.ToLegacyBrokerConfig()); err == nil {
-			exec = e
-			log.Info("execution broker ready", "provider", brokerCfg.Provider, "env", brokerCfg.Env)
-		} else {
-			log.Warn("execution broker unavailable", "err", err)
+		e, err := brokerwire.NewExecution(brokerCfg.ToLegacyBrokerConfig())
+		if err != nil {
+			log.Error("execution broker unavailable", "err", err, "execution_mode", brokerCfg.Env)
+			os.Exit(1)
 		}
+		exec = e
+		log.Info("execution broker ready", "provider", brokerCfg.Provider, "env", brokerCfg.Env)
 	}
 
 	// Wire Discord notifications for fills and rejected/cancelled outcomes.

@@ -44,6 +44,16 @@ flowchart TB
 
 ## Local development
 
+**Quick path (interactive):**
+
+```bash
+./scripts/quickstart.sh
+```
+
+Prompts for API keys and secrets, then builds in **dry** (monitor only), **paper** (simulated trades), or **live** (real trade keys — live broker not implemented yet; see [docs/plans/live-execution-broker.md](docs/plans/live-execution-broker.md)).
+
+**Manual path:**
+
 1. `cp .env.example .env` and set **`DATABASE_URL`**, **`INTERNAL_API_KEY`**, **`COINBASE_READ_API_KEY`**, **`COINBASE_READ_API_SECRET`**, and optional **`DISCORD_WEBHOOK_URL`** (portfolio-api trade outcome webhooks only).
 2. `docker compose up --build` — starts **web**, **portfolio-api**, **ingest**, **signals**, and **Postgres** (no optional **trading-worker** in the default stack).
 3. Open http://localhost:3000 — sign in with **`AUTH_USERNAME`** / **`AUTH_PASSWORD`** from `.env`.

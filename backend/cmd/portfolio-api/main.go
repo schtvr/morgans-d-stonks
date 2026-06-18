@@ -42,9 +42,16 @@ func main() {
 	}
 	brokerCfg := config.LoadBroker()
 	tradingCfg := config.LoadTrading()
-	if err := tradingCfg.Validate(brokerCfg.Provider); err != nil {
+	if err := brokerCfg.Validate(); err != nil {
+		log.Error("invalid broker config", "err", err)
+		os.Exit(1)
+	}
+	if err := tradingCfg.Validate(brokerCfg.Provider, brokerCfg.Env); err != nil {
 		log.Error("invalid trading config", "err", err)
 		os.Exit(1)
+	}
+	if tradingCfg.Enabled {
+		log.Info("trading enabled", "execution_mode", brokerCfg.Env, "live_ack", tradingCfg.LiveAck)
 	}
 
 	ctx := context.Background()
@@ -84,6 +91,7 @@ func main() {
 	app := &app{
 		cfg:        cfg,
 		tradingCfg: tradingCfg,
+		brokerEnv:  brokerCfg.Env,
 		repo:       repo,
 		tradeRepo:  tradeRepo,
 		tradeSvc: trading.NewService(tradeRepo, trading.Policy{
@@ -221,6 +229,7 @@ func main() {
 type app struct {
 	cfg        config.PortfolioAPI
 	tradingCfg config.Trading
+	brokerEnv  string
 	repo       portfolio.Repository
 	tradeRepo  *tradepg.Repository
 	tradeSvc   *trading.Service

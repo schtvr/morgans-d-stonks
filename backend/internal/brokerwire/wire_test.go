@@ -41,6 +41,25 @@ func TestNewExecutionCoinbasePaper(t *testing.T) {
 	}
 }
 
+func TestNewExecutionCoinbaseLive(t *testing.T) {
+	_, err := NewExecution(broker.Config{Provider: "coinbase", Environment: "live"})
+	if err == nil {
+		t.Fatal("expected error without trade credentials")
+	}
+	b, err := NewExecution(broker.Config{
+		Provider:               "coinbase",
+		Environment:            "live",
+		CoinbaseTradeAPIKey:    "trade-key",
+		CoinbaseTradeAPISecret: "trade-secret",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b == nil {
+		t.Fatal("expected live broker")
+	}
+}
+
 func TestNewCoinbase(t *testing.T) {
 	b, err := New(broker.Config{Provider: "coinbase"})
 	if err != nil {

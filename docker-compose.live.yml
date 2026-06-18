@@ -22,8 +22,10 @@ services:
   portfolio-api:
     environment:
       BROKER_ENV: live
+      TRADING_LIVE_ACK: "true"
 
   trading-worker:
     environment:
       # Override paper default from docker-compose.coinbase.yml → execute real orders.
       BROKER_ENV: live
+      TRADING_LIVE_ACK: "true"

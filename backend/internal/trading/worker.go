@@ -127,6 +127,9 @@ func (w *Worker) reconcileOrder(ctx context.Context, order Order) {
 		polled, err := poller.GetOrder(ctx, order.ProviderOrderID)
 		if err != nil {
 			w.Log.Warn("poll order status", "order_id", order.ID, "provider_id", order.ProviderOrderID, "err", err)
+			if w.Metrics != nil {
+				w.Metrics.IncLiveReconciliationError()
+			}
 			action = "poll_error"
 			// Record drift so we have an audit trail but keep the current status.
 			_ = w.Repo.RecordReconciliation(ctx, Reconciliation{
